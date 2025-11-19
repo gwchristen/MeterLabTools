@@ -1,39 +1,36 @@
-import tkinter as tk
-from tkinter import messagebox
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton
 
-class LoginDialog:
-    def __init__(self, master):
-        self.master = master
-        master.title("Login")
-
-        self.label = tk.Label(master, text="Enter your credentials:")
-        self.label.pack()
-
-        self.username_label = tk.Label(master, text="Username:")
-        self.username_label.pack()
-        self.username_entry = tk.Entry(master)
-        self.username_entry.pack()
-
-        self.password_label = tk.Label(master, text="Password:")
-        self.password_label.pack()
-        self.password_entry = tk.Entry(master, show="*")
-        self.password_entry.pack()
-
-        self.login_button = tk.Button(master, text="Login", command=self.login)
-        self.login_button.pack()
-
-    def login(self):
-        username = self.username_entry.get()
-        password = self.password_entry.get()
-
-        # Add your authentication logic here
-        if (username == "admin") and (password == "password"):
-            messagebox.showinfo("Login Success", "You are logged in!")
-            self.master.quit()
-        else:
-            messagebox.showerror("Login Failed", "Invalid username or password.")
-
-if __name__ == '__main__':
-    root = tk.Tk()
-    login_dialog = LoginDialog(root)
-    root.mainloop()
+class LoginWindow(QDialog):
+    """Login/Authentication dialog"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Login")
+        self.setGeometry(400, 300, 300, 200)
+        
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Setup login UI"""
+        layout = QVBoxLayout()
+        
+        # Username
+        username_label = QLabel("Username:")
+        self.username_input = QLineEdit()
+        
+        # Password
+        password_label = QLabel("Password:")
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        
+        # Login button
+        login_button = QPushButton("Login")
+        login_button.clicked.connect(self.accept)
+        
+        layout.addWidget(username_label)
+        layout.addWidget(self.username_input)
+        layout.addWidget(password_label)
+        layout.addWidget(self.password_input)
+        layout.addWidget(login_button)
+        
+        self.setLayout(layout)

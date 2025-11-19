@@ -1,34 +1,40 @@
-import sys
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QPushButton, QSpinBox
 
-class SettingsDialog(QDialog):
+class SettingsWindow(QDialog):
+    """Settings and preferences dialog"""
+    
     def __init__(self, parent=None):
-        super(SettingsDialog, self).__init__(parent)
-        self.setWindowTitle('Settings and Preferences')
-        self.setGeometry(100, 100, 400, 300)
-
-        self.layout = QVBoxLayout()
-
-        self.label = QLabel('Enter your preference:')
-        self.layout.addWidget(self.label)
-
-        self.preference_input = QLineEdit()
-        self.layout.addWidget(self.preference_input)
-
-        self.save_button = QPushButton('Save')
-        self.save_button.clicked.connect(self.save_preferences)
-
-        self.layout.addWidget(self.save_button)
-
-        self.setLayout(self.layout)
-
-    def save_preferences(self):
-        preference = self.preference_input.text()
-        print(f'Saved preference: {preference}')  # Here you might want to save to a file or settings store.
-        self.close()
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    dialog = SettingsDialog()
-    dialog.show()
-    sys.exit(app.exec_())
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.setGeometry(400, 300, 400, 300)
+        
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Setup settings UI"""
+        layout = QVBoxLayout()
+        
+        # Theme selection
+        theme_label = QLabel("Theme:")
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["Light", "Dark"])
+        
+        # Font size
+        font_label = QLabel("Font Size:")
+        self.font_spinbox = QSpinBox()
+        self.font_spinbox.setMinimum(8)
+        self.font_spinbox.setMaximum(20)
+        self.font_spinbox.setValue(10)
+        
+        # Apply button
+        apply_button = QPushButton("Apply")
+        apply_button.clicked.connect(self.accept)
+        
+        layout.addWidget(theme_label)
+        layout.addWidget(self.theme_combo)
+        layout.addWidget(font_label)
+        layout.addWidget(self.font_spinbox)
+        layout.addStretch()
+        layout.addWidget(apply_button)
+        
+        self.setLayout(layout)

@@ -1,43 +1,53 @@
-# shared/auth.py
+from typing import Optional
 
 class User:
-    def __init__(self, username, password):
+    """User class for authentication"""
+    
+    def __init__(self, username: str, password: str, email: str = ""):
         self.username = username
-        self.password = password  # In practice, use hashed passwords
-
+        self.password = password  # Note: In production, use hashed passwords
+        self.email = email
+    
     def __str__(self):
         return f"User({self.username})"
+    
+    def __repr__(self):
+        return f"User(username='{self.username}', email='{self.email}')"
 
 
 class UserManager:
+    """Manage user authentication and creation"""
+    
     def __init__(self):
-        self.users = {}
-
-    def create_user(self, username, password):
+        self.users: dict = {}
+    
+    def create_user(self, username: str, password: str, email: str = "") -> User:
+        """Create a new user"""
         if username in self.users:
-            raise ValueError("User already exists")
-        self.users[username] = User(username, password)
-        return self.users[username]
-
-    def get_user(self, username):
+            raise ValueError(f"User '{username}' already exists")
+        
+        user = User(username, password, email)
+        self.users[username] = user
+        return user
+    
+    def get_user(self, username: str) -> Optional[User]:
+        """Get user by username"""
         return self.users.get(username, None)
-
-    def delete_user(self, username):
+    
+    def delete_user(self, username: str) -> bool:
+        """Delete a user"""
         if username in self.users:
             del self.users[username]
-        else:
-            raise ValueError("User not found")
-
-    def authenticate(self, username, password):
+            return True
+        return False
+    
+    def authenticate(self, username: str, password: str) -> bool:
+        """Authenticate user credentials"""
         user = self.get_user(username)
         if user and user.password == password:
             return True
         return False
-
-# Example usage
-if __name__ == "__main__":
-    user_manager = UserManager()
-    # Create a new user
-    user_manager.create_user("test_user", "password123")
-    # Authenticate user
-    print(user_manager.authenticate("test_user", "password123"))  # Should return True
+    
+    def list_users(self) -> list:
+        """List all users"""
+        return list(self.users.values())

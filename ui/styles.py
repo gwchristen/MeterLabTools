@@ -1,35 +1,48 @@
-# theme_management.py
+from typing import Dict, Optional
 
 class Theme:
-    def __init__(self, name, styles):
+    """Theme class for managing application themes"""
+    
+    def __init__(self, name: str, styles: Dict[str, str]):
         self.name = name
         self.styles = styles
-
+    
     def apply(self):
-        # Logic to apply styles
+        """Apply theme styles"""
         pass
+    
+    def get_style(self, key: str, default: str = "") -> str:
+        """Get a style value"""
+        return self.styles.get(key, default)
+
 
 class ThemeManager:
+    """Manage application themes"""
+    
     def __init__(self):
-        self.themes = {}
-        self.current_theme = None
-
-    def add_theme(self, theme):
+        self.themes: Dict[str, Theme] = {}
+        self.current_theme: Optional[Theme] = None
+    
+    def add_theme(self, theme: Theme) -> None:
+        """Add a theme"""
         self.themes[theme.name] = theme
-
-    def set_theme(self, theme_name):
+    
+    def set_theme(self, theme_name: str) -> bool:
+        """Set the current theme"""
         if theme_name in self.themes:
             self.current_theme = self.themes[theme_name]
             self.current_theme.apply()
-        else:
-            raise ValueError(f'No theme named {theme_name}')
-
-# Example usage:
-
-if __name__ == '__main__':
-    light_theme = Theme('Light', styles={'background': 'white', 'text': 'black'})
-    dark_theme = Theme('Dark', styles={'background': 'black', 'text': 'white'})
-    manager = ThemeManager()
-    manager.add_theme(light_theme)
-    manager.add_theme(dark_theme)
-    manager.set_theme('Light')
+            return True
+        return False
+    
+    def get_current_theme(self) -> Optional[Theme]:
+        """Get current theme"""
+        return self.current_theme
+    
+    def get_theme(self, name: str) -> Optional[Theme]:
+        """Get theme by name"""
+        return self.themes.get(name, None)
+    
+    def list_themes(self) -> list:
+        """List all themes"""
+        return list(self.themes.keys())

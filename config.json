@@ -1,1 +1,52 @@
-{\n  "modules": [\n    {\n      "name": "Sales Calculator",\n      "description": "Calculate sales figures and profitability.",\n      "version": "1.0",\n      "author": "gwchristen"\n    },\n    {\n      "name": "Inventory System",\n      "description": "Manage inventory levels and tracking.",\n      "version": "1.0",\n      "author": "gwchristen"\n    },\n    {\n      "name": "Employee Directory",\n      "description": "Keep track of employee information.",\n      "version": "1.0",\n      "author": "gwchristen"\n    },\n    {\n      "name": "Financial Reports",\n      "description": "Generate financial reports and summaries.",\n      "version": "1.0",\n      "author": "gwchristen"\n    },\n    {\n      "name": "Project Tracker",\n      "description": "Track project progress and milestones.",\n      "version": "1.0",\n      "author": "gwchristen"\n    },\n    {\n      "name": "Time Logging",\n      "description": "Log working hours on projects.",\n      "version": "1.0",\n      "author": "gwchristen"\n    },\n    {\n      "name": "Budget Planner",\n      "description": "Plan and track budgets for projects.",\n      "version": "1.0",\n      "author": "gwchristen"\n    },\n    {\n      "name": "Resource Allocation",\n      "description": "Allocate resources to projects efficiently.",\n      "version": "1.0",\n      "author": "gwchristen"\n    }\n  ]\n}
+{
+  "modules": [
+    {
+      "name": "Sales Calculator",
+      "description": "Calculate sales figures and profitability.",
+      "version": "1.0",
+      "author": "gwchristen"
+    },
+    {
+      "name": "Inventory System",
+      "description": "Manage inventory levels and tracking.",
+      "version": "1.0",
+      "author": "gwchristen"
+    },
+    {
+      "name": "Employee Directory",
+      "description": "Keep track of employee information.",
+      "version": "1.0",
+      "author": "gwchristen"
+    },
+    {
+      "name": "Financial Reports",
+      "description": "Generate financial reports and summaries.",
+      "version": "1.0",
+      "author": "gwchristen"
+    },
+    {
+      "name": "Project Tracker",
+      "description": "Track project progress and milestones.",
+      "version": "1.0",
+      "author": "gwchristen"
+    },
+    {
+      "name": "Time Logging",
+      "description": "Log working hours on projects.",
+      "version": "1.0",
+      "author": "gwchristen"
+    },
+    {
+      "name": "Budget Planner",
+      "description": "Plan and track budgets for projects.",
+      "version": "1.0",
+      "author": "gwchristen"
+    },
+    {
+      "name": "Resource Allocation",
+      "description": "Allocate resources to projects efficiently.",
+      "version": "1.0",
+      "author": "gwchristen"
+    }
+  ]
+}
