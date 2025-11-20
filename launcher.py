@@ -229,6 +229,46 @@ class MeterLabToolsLauncher(QMainWindow):
         except Exception as e:
             print(f"Error recording module: {e}")
         
+        # Launch the actual module based on module_id
+        if module_id == "Created Histories":
+            self.launch_created_histories()
+        elif module_id == "Sales Calculator":
+            QMessageBox.information(self, "Module", "Sales Calculator - Coming soon!")
+        elif module_id == "Employee Directory":
+            QMessageBox.information(self, "Module", "Employee Directory - Coming soon!")
+        elif module_id == "Financial Reports":
+            QMessageBox.information(self, "Module", "Financial Reports - Coming soon!")
+        elif module_id == "Project Tracker":
+            QMessageBox.information(self, "Module", "Project Tracker - Coming soon!")
+        elif module_id == "Time Logging":
+            QMessageBox.information(self, "Module", "Time Logging - Coming soon!")
+        elif module_id == "Budget Planner":
+            QMessageBox.information(self, "Module", "Budget Planner - Coming soon!")
+        elif module_id == "Resource Allocation":
+            QMessageBox.information(self, "Module", "Resource Allocation - Coming soon!")
+        else:
+            QMessageBox.information(self, "Module Launch", 
+                                   f"Module '{module_id}' would launch here")
+
+    def launch_created_histories(self):
+        """Launch the Created Histories module"""
+        try:
+            # Import the Created Histories module
+            import sys
+            sys.path.insert(0, 'modules/module_2')
+            from app import CreatedHistoriesApp
+        
+            # Create and show the Created Histories
+            self.inventory_window = CreatedHistoriesApp()
+            self.inventory_window.show()
+        
+            print("Created Histories launched successfully")
+        
+        except Exception as e:
+            error_msg = f"Error launching Created Histories: {e}"
+            print(error_msg)
+            QMessageBox.warning(self, "Error", error_msg)
+
         # Show message
         msg = (f"Module '{module_id}' launched!\n\n"
                f"Timestamp: {current_datetime_utc()}\n"
