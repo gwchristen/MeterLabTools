@@ -1,0 +1,7 @@
+C:\Users\s245451\Documents\source\AIM\Deploy-AIM-Reencrypt.ps1 : AES-GCM encryption failed. Ensure you are running
+PowerShell 7+ on .NET Core that supports AesGcm. Error: Unable to find type [System.Security.Cryptography.AesGcm].
+At line:1 char:1
++ .\Deploy-AIM-Reencrypt.ps1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,Deploy-AIM-Reencrypt.ps1
