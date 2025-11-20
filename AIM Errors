@@ -1,54 +1,7 @@
-private void WriteInstallerSettings()
-{
-    try
-    {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        
-        // Use the correct path that matches SettingsService
-        var aimConfigDir = Path.Combine(localAppData, "Microsoft.WinUI.3", "AIM");
-        Directory.CreateDirectory(aimConfigDir);
-
-        var settingsPath = Path.Combine(aimConfigDir, "settings.json");
-        
-        // Create settings that match AppSettings model and allow user modification
-        var settings = new Dictionary<string, object>
-        {
-            // Use your network paths as defaults but allow them to be changed in app
-            { "DefaultRootDirectory", DEFAULT_ROOT_DIRECTORY },
-            { "ArchivePath", ARCHIVE_PATH },
-            { "ShippedDirectory", SHIPPED_DIRECTORY },
-            { "FileScansDirectory", FILE_SCANS_DIRECTORY },
-            { "InventoryArchiveDirectory", INVENTORY_ARCHIVE_DIRECTORY },
-            
-            // Security and UI settings
-            { "Theme", "FollowSystem" },
-            { "AuthorizedUsers", new string[] { } },
-            { "LastOpenedPaths", new string[] { } },
-            { "FormTemplateType", "Ohio" },
-            
-            // Shared security configuration
-            { "UseSharedConfig", !string.IsNullOrWhiteSpace(sharedSecurityPath) },
-            { "SharedSecurityConfigPath", sharedSecurityPath ?? "" },
-            { "Passphrase", !string.IsNullOrWhiteSpace(sharedSecurityPath) ? ObfuscatedPassphrase : "" }
-        };
-
-        if (!string.IsNullOrWhiteSpace(sharedSecurityPath))
-        {
-            LogMessage($"Configuring shared security: {sharedSecurityPath}");
-            LogMessage("Writing passphrase to settings (obfuscated)...");
-        }
-
-        // Write settings as JSON
-        var json = System.Text.Json.JsonSerializer.Serialize(settings, new System.Text.Json.JsonSerializerOptions 
-        { 
-            WriteIndented = true 
-        });
-        File.WriteAllText(settingsPath, json);
-        
-        LogMessage($"Settings written to: {settingsPath}");
-    }
-    catch (Exception ex)
-    {
-        LogMessage($"Warning: Could not write installer settings: {ex.Message}");
-    }
-}
+Build output:
+  Determining projects to restore...   Restored C:\Users\s245451\Documents\source\AIM\AIM.Installer\AIM.Installer.csproj (in 479 ms). C:\Users\s245451\Documents\source\AIM\AIM.Installer\InstallerForm.cs(873,22): error CS0111: Type 'InstallerForm' already defines a member called 'WriteInstallerSettings' with the same parameter types [C:\Users\s245451\Documents\source\AIM\AIM.Installer\AIM.Installer.csproj]  Workload updates are available. Run `dotnet workload list` for more information.
+Exception: C:\Users\s245451\Documents\source\AIM\Build-Installer.ps1:232
+Line |
+ 232 |      throw "Error building installer: $_"
+     |      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Error building installer: Failed to build installer. Exit code: 1
