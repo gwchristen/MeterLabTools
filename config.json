@@ -1,14 +1,14 @@
 {
   "modules": [
     {
-      "name": "Sales Calculator",
-      "description": "Calculate sales figures and profitability.",
+      "name": "Created Histories",
+      "description": "Records of established records/created histories for Meters and Transformers",
       "version": "1.0",
       "author": "gwchristen"
     },
     {
-      "name": "Inventory System",
-      "description": "Manage inventory levels and tracking.",
+      "name": "Sales Calculator",
+      "description": "Calculate sales figures and profitability.",
       "version": "1.0",
       "author": "gwchristen"
     },
