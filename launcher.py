@@ -30,6 +30,9 @@ class MeterLabToolsLauncher(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
         self.setGeometry(100, 100, 1200, 800)
         
+        # Track current theme
+        self.current_theme = "Light"
+        
         # Initialize database
         print("Initializing database...")
         try:
@@ -249,33 +252,27 @@ class MeterLabToolsLauncher(QMainWindow):
         else:
             QMessageBox.information(self, "Module Launch", 
                                    f"Module '{module_id}' would launch here")
-
+    
     def launch_created_histories(self):
         """Launch the Created Histories module"""
         try:
-            # Import the Created Histories module
+            # Import the module
             import sys
             sys.path.insert(0, 'modules/module_2')
             from app import CreatedHistoriesApp
-        
-            # Create and show the Created Histories
-            self.inventory_window = CreatedHistoriesApp()
-            self.inventory_window.show()
-        
-            print("Created Histories launched successfully")
-        
+            
+            # Create and show the window with current theme
+            self.created_histories_window = CreatedHistoriesApp(parent_theme=self.current_theme)
+            self.created_histories_window.show()
+            
+            print("Created Histories module launched successfully")
+            
         except Exception as e:
             error_msg = f"Error launching Created Histories: {e}"
             print(error_msg)
+            import traceback
+            traceback.print_exc()
             QMessageBox.warning(self, "Error", error_msg)
-
-        # Show message
-        msg = (f"Module '{module_id}' launched!\n\n"
-               f"Timestamp: {current_datetime_utc()}\n"
-               f"User: gwchristen\n\n"
-               f"This is a placeholder. Implement actual module launching here.")
-        
-        QMessageBox.information(self, "Module Launched", msg)
     
     def create_menu_bar(self):
         """Create the menu bar"""
@@ -315,6 +312,7 @@ class MeterLabToolsLauncher(QMainWindow):
     
     def apply_light_theme(self):
         """Apply light theme"""
+        self.current_theme = "Light"
         self.setStyleSheet("""
             QMainWindow, QWidget {
                 background-color: #ffffff;
@@ -366,6 +364,7 @@ class MeterLabToolsLauncher(QMainWindow):
     
     def apply_dark_theme(self):
         """Apply dark theme"""
+        self.current_theme = "Dark"
         self.setStyleSheet("""
             QMainWindow, QWidget {
                 background-color: #1e1e1e;

@@ -4,9 +4,9 @@ from datetime import datetime
 
 
 class InventoryDatabase:
-    """Database manager for inventory system"""
+    """Database manager for Created Histories system"""
     
-    def __init__(self, db_path: str = 'inventory.db'):
+    def __init__(self, db_path: str = 'created_histories.db'):
         self.db_path = db_path
         self.connection = None
     
@@ -29,8 +29,9 @@ class InventoryDatabase:
             # Create inventory table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS inventory (
-                    id INTEGER PRIMARY KEY,
-                    opco TEXT,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    opco TEXT NOT NULL,
+                    device_type TEXT NOT NULL,
                     status TEXT,
                     mfr TEXT,
                     dev_code TEXT,
@@ -53,13 +54,11 @@ class InventoryDatabase:
                 )
             ''')
             
-            # Create index for faster queries
-            cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_dev_code ON inventory(dev_code)
-            ''')
-            cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_opco ON inventory(opco)
-            ''')
+            # Create indexes for faster queries
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_opco_type ON inventory(opco, device_type)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_dev_code ON inventory(dev_code)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_po_number ON inventory(po_number)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_recv_date ON inventory(recv_date)')
             
             conn.commit()
             conn.close()
@@ -68,20 +67,104 @@ class InventoryDatabase:
         except sqlite3.Error as e:
             print(f"Error initializing database: {e}")
     
-    def insert_item(self, item: Dict[str, Any]) -> bool:
-        """Insert inventory item"""
+    def get_items_by_sheet(self, opco: str, device_type: str) -> List[tuple]:
+        """Get items filtered by OpCo and device type"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
+                       qty, po_date, po_number, recv_date, unit_cost, cid,
+                       me_number, pur_code, est, use, notes1, notes2
+                FROM inventory
+                WHERE opco = ? AND device_type = ?
+                ORDER BY id DESC
+            ''', (opco, device_type))
+            
+            items = cursor.fetchall()
+            conn.close()
+            return items
+            
+        except sqlite3.Error as e:
+            print(f"Error fetching items: {e}")
+            return []
+    
+    def search_items(self, opco: str, device_type: str, search_type: str, search_value: str) -> List[tuple]:
+        """Search items by device code, PO number, or recv date"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            if search_type == "dev_code":
+                cursor.execute('''
+                    SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
+                           qty, po_date, po_number, recv_date, unit_cost, cid,
+                           me_number, pur_code, est, use, notes1, notes2
+                    FROM inventory
+                    WHERE opco = ? AND device_type = ? AND dev_code LIKE ?
+                    ORDER BY id DESC
+                ''', (opco, device_type, f"%{search_value}%"))
+            
+            elif search_type == "po_number":
+                cursor.execute('''
+                    SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
+                           qty, po_date, po_number, recv_date, unit_cost, cid,
+                           me_number, pur_code, est, use, notes1, notes2
+                    FROM inventory
+                    WHERE opco = ? AND device_type = ? AND po_number LIKE ?
+                    ORDER BY id DESC
+                ''', (opco, device_type, f"%{search_value}%"))
+            
+            elif search_type == "recv_date":
+                cursor.execute('''
+                    SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
+                           qty, po_date, po_number, recv_date, unit_cost, cid,
+                           me_number, pur_code, est, use, notes1, notes2
+                    FROM inventory
+                    WHERE opco = ? AND device_type = ? AND recv_date = ?
+                    ORDER BY id DESC
+                ''', (opco, device_type, search_value))
+            
+            items = cursor.fetchall()
+            conn.close()
+            return items
+            
+        except sqlite3.Error as e:
+            print(f"Error searching items: {e}")
+            return []
+    
+    def get_item_by_id(self, item_id: int) -> Optional[Dict]:
+        """Get a single item by ID"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT * FROM inventory WHERE id = ?', (item_id,))
+            item = cursor.fetchone()
+            conn.close()
+            
+            return dict(item) if item else None
+            
+        except sqlite3.Error as e:
+            print(f"Error fetching item: {e}")
+            return None
+    
+    def insert_item(self, item: Dict[str, Any]) -> int:
+        """Insert inventory item and return ID"""
         try:
             conn = self.connect()
             cursor = conn.cursor()
             
             cursor.execute('''
                 INSERT INTO inventory (
-                    opco, status, mfr, dev_code, beg_ser, end_ser, qty,
+                    opco, device_type, status, mfr, dev_code, beg_ser, end_ser, qty,
                     po_date, po_number, recv_date, unit_cost, cid, me_number,
-                    pur_code, est, use, notes1, notes2
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    pur_code, est, use, notes1, notes2, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 item.get('opco'),
+                item.get('device_type'),
                 item.get('status'),
                 item.get('mfr'),
                 item.get('dev_code'),
@@ -99,6 +182,54 @@ class InventoryDatabase:
                 item.get('use'),
                 item.get('notes1'),
                 item.get('notes2'),
+                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            ))
+            
+            item_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return item_id
+            
+        except sqlite3.Error as e:
+            print(f"Error inserting item: {e}")
+            return -1
+    
+    def update_item(self, item_id: int, item: Dict[str, Any]) -> bool:
+        """Update inventory item"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE inventory SET
+                    opco = ?, device_type = ?, status = ?, mfr = ?, dev_code = ?,
+                    beg_ser = ?, end_ser = ?, qty = ?, po_date = ?, po_number = ?,
+                    recv_date = ?, unit_cost = ?, cid = ?, me_number = ?,
+                    pur_code = ?, est = ?, use = ?, notes1 = ?, notes2 = ?,
+                    updated_at = ?
+                WHERE id = ?
+            ''', (
+                item.get('opco'),
+                item.get('device_type'),
+                item.get('status'),
+                item.get('mfr'),
+                item.get('dev_code'),
+                item.get('beg_ser'),
+                item.get('end_ser'),
+                item.get('qty', 0),
+                item.get('po_date'),
+                item.get('po_number'),
+                item.get('recv_date'),
+                item.get('unit_cost', 0.0),
+                item.get('cid'),
+                item.get('me_number'),
+                item.get('pur_code'),
+                item.get('est'),
+                item.get('use'),
+                item.get('notes1'),
+                item.get('notes2'),
+                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                item_id
             ))
             
             conn.commit()
@@ -106,101 +237,79 @@ class InventoryDatabase:
             return True
             
         except sqlite3.Error as e:
-            print(f"Error inserting item: {e}")
+            print(f"Error updating item: {e}")
             return False
     
-    def get_all_items(self) -> List[tuple]:
-        """Get all inventory items"""
+    def delete_item(self, item_id: int) -> bool:
+        """Delete inventory item"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM inventory WHERE id = ?', (item_id,))
+            conn.commit()
+            conn.close()
+            return True
+            
+        except sqlite3.Error as e:
+            print(f"Error deleting item: {e}")
+            return False
+    
+    def get_statistics(self, opco: str, device_type: str) -> Dict[str, Any]:
+        """Get statistics for a specific sheet"""
         try:
             conn = self.connect()
             cursor = conn.cursor()
             
             cursor.execute('''
-                SELECT id, opco, status, mfr, dev_code, beg_ser, end_ser,
-                       qty, po_date, po_number, recv_date, unit_cost, cid,
-                       me_number, pur_code, est, use, notes1, notes2
-                FROM inventory
-                ORDER BY id
-            ''')
-            
-            items = cursor.fetchall()
-            conn.close()
-            return items
-            
-        except sqlite3.Error as e:
-            print(f"Error fetching items: {e}")
-            return []
-    
-    def get_item_by_dev_code(self, dev_code: str) -> Optional[Dict]:
-        """Get items by device code"""
-        try:
-            conn = self.connect()
-            cursor = conn.cursor()
+                SELECT COUNT(*) FROM inventory 
+                WHERE opco = ? AND device_type = ?
+            ''', (opco, device_type))
+            total_items = cursor.fetchone()[0] or 0
             
             cursor.execute('''
-                SELECT * FROM inventory WHERE dev_code = ?
-            ''', (dev_code,))
+                SELECT SUM(qty) FROM inventory
+                WHERE opco = ? AND device_type = ?
+            ''', (opco, device_type))
+            result = cursor.fetchone()
+            total_qty = result[0] if result and result[0] else 0
             
-            items = cursor.fetchall()
-            conn.close()
-            return [dict(item) for item in items]
+            cursor.execute('''
+                SELECT SUM(qty * unit_cost) FROM inventory
+                WHERE opco = ? AND device_type = ?
+            ''', (opco, device_type))
+            result = cursor.fetchone()
+            total_value = result[0] if result and result[0] else 0.0
             
-        except sqlite3.Error as e:
-            print(f"Error fetching by device code: {e}")
-            return []
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get inventory statistics"""
-        try:
-            conn = self.connect()
-            cursor = conn.cursor()
-            
-            cursor.execute('SELECT COUNT(*) FROM inventory')
-            total_items = cursor.fetchone()[0]
-            
-            cursor.execute('SELECT SUM(qty) FROM inventory')
-            total_qty = cursor.fetchone()[0] or 0
-            
-            cursor.execute('SELECT SUM(qty * unit_cost) FROM inventory')
-            total_value = cursor.fetchone()[0] or 0.0
-            
-            cursor.execute('SELECT AVG(unit_cost) FROM inventory')
-            avg_cost = cursor.fetchone()[0] or 0.0
-            
-            cursor.execute('SELECT COUNT(DISTINCT opco) FROM inventory')
-            unique_opcos = cursor.fetchone()[0]
-            
-            cursor.execute('SELECT COUNT(DISTINCT mfr) FROM inventory')
-            unique_mfrs = cursor.fetchone()[0]
-            
-            cursor.execute('SELECT COUNT(DISTINCT dev_code) FROM inventory')
-            unique_dev_codes = cursor.fetchone()[0]
+            cursor.execute('''
+                SELECT AVG(unit_cost) FROM inventory 
+                WHERE opco = ? AND device_type = ? AND unit_cost > 0
+            ''', (opco, device_type))
+            result = cursor.fetchone()
+            avg_cost = result[0] if result and result[0] else 0.0
             
             conn.close()
             
             return {
-                'total_items': total_items,
+                'total_items': int(total_items),
                 'total_qty': int(total_qty),
                 'total_value': float(total_value),
                 'avg_cost': float(avg_cost),
-                'unique_opcos': unique_opcos,
-                'unique_mfrs': unique_mfrs,
-                'unique_dev_codes': unique_dev_codes,
             }
             
         except sqlite3.Error as e:
             print(f"Error getting statistics: {e}")
             return {}
     
-    def clear_all(self) -> bool:
-        """Clear all inventory data"""
+    def clear_sheet(self, opco: str, device_type: str) -> bool:
+        """Clear all items from a specific sheet"""
         try:
             conn = self.connect()
             cursor = conn.cursor()
-            cursor.execute('DELETE FROM inventory')
+            cursor.execute('DELETE FROM inventory WHERE opco = ? AND device_type = ?', (opco, device_type))
             conn.commit()
             conn.close()
             return True
         except sqlite3.Error as e:
-            print(f"Error clearing data: {e}")
+            print(f"Error clearing sheet: {e}")
             return False
