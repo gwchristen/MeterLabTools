@@ -1,6 +1,7 @@
-    private bool IsDatabaseLockedException(SQLiteException ex)
-    {
-        return ex.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
-               (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase) && 
-                ex.ErrorCode == SQLiteErrorCode.Locked);
-    }
+Build output:
+  Determining projects to restore...   Restored C:\Users\s245451\Documents\source\AIM\AIM.Installer\AIM.Installer.csproj (in 13.38 sec). C:\Users\s245451\Documents\source\AIM\AIM.Installer\InstallerForm.cs(1445,23): error CS0246: The type or namespace name 'Task<>' could not be found (are you missing a using directive or an assembly reference?) [C:\Users\s245451\Documents\source\AIM\AIM.Installer\AIM.Installer.csproj] C:\Users\s245451\Documents\source\AIM\AIM.Installer\InstallerForm.cs(1567,23): error CS0246: The type or namespace name 'Task' could not be found (are you missing a using directive or an assembly reference?) [C:\Users\s245451\Documents\source\AIM\AIM.Installer\AIM.Installer.csproj] C:\Users\s245451\Documents\source\AIM\AIM.Installer\InstallerForm.cs(1831,23): error CS0246: The type or namespace name 'Task<>' could not be found (are you missing a using directive or an assembly reference?) [C:\Users\s245451\Documents\source\AIM\AIM.Installer\AIM.Installer.csproj] C:\Users\s245451\Documents\source\AIM\AIM.Installer\InstallerForm.cs(2153,23): error CS0246: The type or namespace name 'Task<>' could not be found (are you missing a using directive or an assembly reference?) [C:\Users\s245451\Documents\source\AIM\AIM.Installer\AIM.Installer.csproj]  Workload updates are available. Run `dotnet workload list` for more information.
+Exception: C:\Users\s245451\Documents\source\AIM\Build-Installer.ps1:208
+Line |
+ 208 |      throw "Error building installer: $_"
+     |      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Error building installer: Failed to build installer. Exit code: 1
