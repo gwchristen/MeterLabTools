@@ -1,5 +1,4 @@
-# In PowerShell, before running the installer
-$env:AIM_SECURITY_DB_PATH = "\\oh1cam01\cml\Internal\LAB STOCK\Important Inventory Related Documents\AIM\AIM_Security.db"
-
-# Then run your installer
-.\AIM.Installer.exe
+Severity	Code	Description	Project	File	Line	Suppression State	Details
+Error (active)	CS0246	The type or namespace name 'EventHandler<>' could not be found (are you missing a using directive or an assembly reference?)	AIM	C:\Users\s245451\Documents\source\AIM\Services\ILockService.cs	28		
+Error (active)	CS0066	'ILockService.LockStateChanged': event must be of a delegate type	AIM	C:\Users\s245451\Documents\source\AIM\Services\ILockService.cs	28		
+Error (active)	CS0738	'LockService' does not implement interface member 'ILockService.LockStateChanged'. 'LockService.LockStateChanged' cannot implement 'ILockService.LockStateChanged' because it does not have the matching return type of 'EventHandler<bool>?'.	AIM	C:\Users\s245451\Documents\source\AIM\Services\LockService.cs	10		
