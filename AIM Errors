@@ -1,1 +1,5 @@
-  private static readonly string SecurityDatabasePath = Environment.GetEnvironmentVariable("AIM_SECURITY_DB_PATH") ?? @"\\oh1cam01\cml\Internal\LAB STOCK\Important Inventory Related Documents\AIM\AIM_Security.db";
+# In PowerShell, before running the installer
+$env:AIM_SECURITY_DB_PATH = "\\oh1cam01\cml\Internal\LAB STOCK\Important Inventory Related Documents\AIM\AIM_Security.db"
+
+# Then run your installer
+.\AIM.Installer.exe
