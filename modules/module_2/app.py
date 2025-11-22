@@ -254,6 +254,14 @@ class CreatedHistoriesApp(QMainWindow):
         'I&M - Transformers': ('I&M', 'Transformers'),
     }
     
+    # Sidebar configuration constants
+    SIDEBAR_EXPANDED_WIDTH = 260
+    SIDEBAR_COLLAPSED_WIDTH = 50
+    SIDEBAR_ANIMATION_DURATION = 200  # milliseconds
+    RESPONSIVE_BREAKPOINT_WIDTH = 1200  # pixels
+    SIDEBAR_STATE_AUTO = "auto"
+    SIDEBAR_STATE_MANUAL = "manual"
+    
     def __init__(self, parent_theme="Light"):
         super().__init__()
         
@@ -269,8 +277,6 @@ class CreatedHistoriesApp(QMainWindow):
         
         # Sidebar state
         self.sidebar_collapsed = False
-        self.sidebar_expanded_width = 260
-        self.sidebar_collapsed_width = 50
         
         # Setup UI
         self.setup_ui()
@@ -388,8 +394,8 @@ class CreatedHistoriesApp(QMainWindow):
         """Create modern sidebar with collapsible support"""
         sidebar = QFrame()
         sidebar.setProperty("class", "sidebar")
-        sidebar.setMinimumWidth(self.sidebar_expanded_width)
-        sidebar.setMaximumWidth(self.sidebar_expanded_width)
+        sidebar.setMinimumWidth(self.SIDEBAR_EXPANDED_WIDTH)
+        sidebar.setMaximumWidth(self.SIDEBAR_EXPANDED_WIDTH)
         
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 24, 16, 16)
@@ -792,16 +798,16 @@ class CreatedHistoriesApp(QMainWindow):
         """Collapse sidebar with animation"""
         # Create animation for width
         self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
-        self.sidebar_animation.setDuration(200)
-        self.sidebar_animation.setStartValue(self.sidebar_expanded_width)
-        self.sidebar_animation.setEndValue(self.sidebar_collapsed_width)
+        self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+        self.sidebar_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
+        self.sidebar_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
         self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         
         # Also animate maximum width
         self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
-        self.sidebar_max_animation.setDuration(200)
-        self.sidebar_max_animation.setStartValue(self.sidebar_expanded_width)
-        self.sidebar_max_animation.setEndValue(self.sidebar_collapsed_width)
+        self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+        self.sidebar_max_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
+        self.sidebar_max_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
         self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         
         # Start animations
@@ -826,16 +832,16 @@ class CreatedHistoriesApp(QMainWindow):
         """Expand sidebar with animation"""
         # Create animation for width
         self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
-        self.sidebar_animation.setDuration(200)
-        self.sidebar_animation.setStartValue(self.sidebar_collapsed_width)
-        self.sidebar_animation.setEndValue(self.sidebar_expanded_width)
+        self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+        self.sidebar_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
+        self.sidebar_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
         self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         
         # Also animate maximum width
         self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
-        self.sidebar_max_animation.setDuration(200)
-        self.sidebar_max_animation.setStartValue(self.sidebar_collapsed_width)
-        self.sidebar_max_animation.setEndValue(self.sidebar_expanded_width)
+        self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+        self.sidebar_max_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
+        self.sidebar_max_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
         self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
         
         # Start animations
@@ -864,15 +870,15 @@ class CreatedHistoriesApp(QMainWindow):
         state = "collapsed" if self.sidebar_collapsed else "expanded"
         self.db.set_preference("sidebar_state", state)
         # Mark as manual when explicitly toggled
-        self.db.set_preference("sidebar_manual_state", "manual")
+        self.db.set_preference("sidebar_manual_state", self.SIDEBAR_STATE_MANUAL)
     
     def load_sidebar_state(self):
         """Load sidebar state from database"""
         state = self.db.get_preference("sidebar_state", "expanded")
         if state == "collapsed":
             # Set initial collapsed state without animation
-            self.sidebar.setMinimumWidth(self.sidebar_collapsed_width)
-            self.sidebar.setMaximumWidth(self.sidebar_collapsed_width)
+            self.sidebar.setMinimumWidth(self.SIDEBAR_COLLAPSED_WIDTH)
+            self.sidebar.setMaximumWidth(self.SIDEBAR_COLLAPSED_WIDTH)
             self.dashboard_btn.setText("🏠")
             for sheet_name, btn in self.sheet_buttons.items():
                 btn.setText("◆")
@@ -1143,21 +1149,21 @@ class CreatedHistoriesApp(QMainWindow):
         """Handle window resize for responsive behavior"""
         super().resizeEvent(event)
         
-        # Auto-collapse sidebar on screens < 1200px
+        # Auto-collapse sidebar on screens < RESPONSIVE_BREAKPOINT_WIDTH
         window_width = event.size().width()
         
-        if window_width < 1200:
+        if window_width < self.RESPONSIVE_BREAKPOINT_WIDTH:
             # Auto-collapse if not already collapsed and wasn't manually collapsed
             if not self.sidebar_collapsed:
                 # Check if this is a manual collapse or auto-collapse
-                manual_state = self.db.get_preference("sidebar_manual_state", "auto")
-                if manual_state == "auto":
+                manual_state = self.db.get_preference("sidebar_manual_state", self.SIDEBAR_STATE_AUTO)
+                if manual_state == self.SIDEBAR_STATE_AUTO:
                     self.collapse_sidebar()
         else:
             # Auto-expand if window is wide enough and in auto mode
             if self.sidebar_collapsed:
-                manual_state = self.db.get_preference("sidebar_manual_state", "auto")
-                if manual_state == "auto":
+                manual_state = self.db.get_preference("sidebar_manual_state", self.SIDEBAR_STATE_AUTO)
+                if manual_state == self.SIDEBAR_STATE_AUTO:
                     self.expand_sidebar()
 
 
