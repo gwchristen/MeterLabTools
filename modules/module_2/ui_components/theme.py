@@ -157,10 +157,10 @@ class ThemeManager:
                 background-color: {colors.primary};
                 color: white;
                 border: none;
-                padding: 8px 12px;
+                padding: 6px 12px;
                 border-radius: 6px;
                 font-weight: 600;
-                min-height: 36px;
+                min-height: 32px;
             }}
             
             QPushButton:hover {{
@@ -197,6 +197,39 @@ class ThemeManager:
             
             QPushButton[class="error"] {{
                 background-color: {colors.error};
+            }}
+            
+            /* Toolbar Buttons - Compact sizing */
+            QPushButton[class="toolbar"] {{
+                min-height: 32px;
+                padding: 6px 10px;
+                font-size: 13px;
+            }}
+            
+            /* Header Buttons - Compact sizing */
+            QPushButton[class="header-btn"] {{
+                min-height: 32px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }}
+            
+            /* Hamburger Menu Button */
+            QPushButton[class="hamburger"] {{
+                background-color: transparent;
+                color: {colors.text};
+                border: 2px solid {colors.border};
+                border-radius: 6px;
+                min-width: 36px;
+                max-width: 36px;
+                min-height: 36px;
+                max-height: 36px;
+                padding: 6px;
+                font-size: 18px;
+            }}
+            
+            QPushButton[class="hamburger"]:hover {{
+                background-color: {colors.surface_hover};
+                border-color: {colors.primary};
             }}
             
             /* Input Fields */
