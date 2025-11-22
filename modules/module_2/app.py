@@ -794,74 +794,74 @@ class CreatedHistoriesApp(QMainWindow):
         else:
             self.collapse_sidebar()
     
-    def collapse_sidebar(self):
-        """Collapse sidebar with animation"""
-        # Create animation for width
-        self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
-        self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
-        self.sidebar_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
-        self.sidebar_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
-        self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        
-        # Also animate maximum width
-        self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
-        self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
-        self.sidebar_max_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
-        self.sidebar_max_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
-        self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        
-        # Start animations
-        self.sidebar_animation.start()
-        self.sidebar_max_animation.start()
-        
-        # Update button texts to show only icons
+    def _set_button_texts_collapsed(self):
+        """Set button texts to icon-only mode"""
         self.dashboard_btn.setText("🏠")
         for sheet_name, btn in self.sheet_buttons.items():
             btn.setText("◆")
-        
-        # Hide text labels
-        self.sidebar_title.hide()
-        self.sheets_label.hide()
-        self.version_label.hide()
-        
-        # Update state
-        self.sidebar_collapsed = True
-        self.save_sidebar_state()
     
-    def expand_sidebar(self):
-        """Expand sidebar with animation"""
-        # Create animation for width
-        self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
-        self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
-        self.sidebar_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
-        self.sidebar_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
-        self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        
-        # Also animate maximum width
-        self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
-        self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
-        self.sidebar_max_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
-        self.sidebar_max_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
-        self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-        
-        # Start animations
-        self.sidebar_animation.start()
-        self.sidebar_max_animation.start()
-        
-        # Restore button texts
+    def _set_button_texts_expanded(self):
+        """Restore button texts to full mode"""
         self.dashboard_btn.setText("🏠 Dashboard")
         for opco, device_type in self.SHEETS:
             sheet_name = f"{opco} - {device_type}"
             btn = self.sheet_buttons.get(sheet_name)
             if btn:
                 btn.setText(f"📋 {sheet_name}")
+    
+    def _update_sidebar_visual_state(self, collapsed: bool, animate: bool = True):
+        """Update sidebar visual state (width, buttons, labels)"""
+        if animate:
+            # Create animation for width
+            self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+            self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+            self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
+            self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+            
+            if collapsed:
+                self.sidebar_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
+                self.sidebar_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
+                self.sidebar_max_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
+                self.sidebar_max_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
+            else:
+                self.sidebar_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
+                self.sidebar_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
+                self.sidebar_max_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
+                self.sidebar_max_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
+            
+            self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            
+            # Start animations
+            self.sidebar_animation.start()
+            self.sidebar_max_animation.start()
+        else:
+            # Set width immediately without animation
+            width = self.SIDEBAR_COLLAPSED_WIDTH if collapsed else self.SIDEBAR_EXPANDED_WIDTH
+            self.sidebar.setMinimumWidth(width)
+            self.sidebar.setMaximumWidth(width)
         
-        # Show text labels
-        self.sidebar_title.show()
-        self.sheets_label.show()
-        self.version_label.show()
-        
-        # Update state
+        # Update button texts and labels
+        if collapsed:
+            self._set_button_texts_collapsed()
+            self.sidebar_title.hide()
+            self.sheets_label.hide()
+            self.version_label.hide()
+        else:
+            self._set_button_texts_expanded()
+            self.sidebar_title.show()
+            self.sheets_label.show()
+            self.version_label.show()
+    
+    def collapse_sidebar(self):
+        """Collapse sidebar with animation"""
+        self._update_sidebar_visual_state(collapsed=True, animate=True)
+        self.sidebar_collapsed = True
+        self.save_sidebar_state()
+    
+    def expand_sidebar(self):
+        """Expand sidebar with animation"""
+        self._update_sidebar_visual_state(collapsed=False, animate=True)
         self.sidebar_collapsed = False
         self.save_sidebar_state()
     
@@ -877,14 +877,7 @@ class CreatedHistoriesApp(QMainWindow):
         state = self.db.get_preference("sidebar_state", "expanded")
         if state == "collapsed":
             # Set initial collapsed state without animation
-            self.sidebar.setMinimumWidth(self.SIDEBAR_COLLAPSED_WIDTH)
-            self.sidebar.setMaximumWidth(self.SIDEBAR_COLLAPSED_WIDTH)
-            self.dashboard_btn.setText("🏠")
-            for sheet_name, btn in self.sheet_buttons.items():
-                btn.setText("◆")
-            self.sidebar_title.hide()
-            self.sheets_label.hide()
-            self.version_label.hide()
+            self._update_sidebar_visual_state(collapsed=True, animate=False)
             self.sidebar_collapsed = True
     
     def add_record(self, opco: str, device_type: str):
