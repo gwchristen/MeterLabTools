@@ -322,6 +322,7 @@ class InventoryDatabase:
             return True
         except sqlite3.Error as e:
             print(f"Error clearing sheet: {e}")
+            return False
     
     def get_preference(self, key: str, default: str = None) -> Optional[str]:
         """Get a user preference value"""
@@ -353,5 +354,4 @@ class InventoryDatabase:
             return True
         except sqlite3.Error as e:
             print(f"Error setting preference: {e}")
-            return False
             return False
