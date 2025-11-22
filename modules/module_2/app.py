@@ -1131,6 +1131,8 @@ class CreatedHistoriesApp(QMainWindow):
             "• Enhanced data grid with sorting\n"
             "• Import/Export functionality\n"
             "• Password-protected edit mode\n"
+            "• Collapsible sidebar (Alt+S) with state persistence\n"
+            "• Responsive auto-collapse on small screens\n"
             "• WCAG 2.1 AA accessibility compliant\n"
             "• Light/Dark theme support\n\n"
             "Created with PyQt6"
