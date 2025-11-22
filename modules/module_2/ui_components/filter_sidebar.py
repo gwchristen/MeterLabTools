@@ -256,7 +256,63 @@ class FilterSidebar(QFrame):
     
     def load_saved_filter(self, name: str):
         """Load a saved filter"""
-        if name in self.saved_filters:
-            # This would need to rebuild the filter UI
-            # For now, just apply it
-            self.apply_filters.emit(self.saved_filters[name])
+        if name == "-- Select --" or name not in self.saved_filters:
+            return
+        
+        filters = self.saved_filters[name]
+        
+        # Rebuild the filter UI
+        # Clear existing conditions except the first one
+        while len(self.filter_builder.conditions) > 1:
+            condition = self.filter_builder.conditions.pop()
+            condition.deleteLater()
+        
+        # Set logic
+        logic = filters.get('logic', 'AND')
+        logic_text = "All conditions (AND)" if logic == 'AND' else "Any condition (OR)"
+        index = self.filter_builder.logic_combo.findText(logic_text)
+        if index >= 0:
+            self.filter_builder.logic_combo.setCurrentIndex(index)
+        
+        # Set first condition
+        conditions = filters.get('conditions', [])
+        if conditions:
+            first = conditions[0]
+            first_widget = self.filter_builder.conditions[0]
+            
+            # Set field
+            field_idx = first_widget.field_combo.findText(first.get('field', ''))
+            if field_idx >= 0:
+                first_widget.field_combo.setCurrentIndex(field_idx)
+            
+            # Set operator
+            op_idx = first_widget.operator_combo.findText(first.get('operator', ''))
+            if op_idx >= 0:
+                first_widget.operator_combo.setCurrentIndex(op_idx)
+            
+            # Set value
+            first_widget.value_input.setText(first.get('value', ''))
+            
+            # Add additional conditions
+            for condition_data in conditions[1:]:
+                self.filter_builder.add_condition()
+                condition_widget = self.filter_builder.conditions[-1]
+                
+                # Set field
+                field_idx = condition_widget.field_combo.findText(condition_data.get('field', ''))
+                if field_idx >= 0:
+                    condition_widget.field_combo.setCurrentIndex(field_idx)
+                
+                # Set operator
+                op_idx = condition_widget.operator_combo.findText(condition_data.get('operator', ''))
+                if op_idx >= 0:
+                    condition_widget.operator_combo.setCurrentIndex(op_idx)
+                
+                # Set value
+                condition_widget.value_input.setText(condition_data.get('value', ''))
+        
+        # Update filter count
+        self.on_filters_changed()
+        
+        # Apply the loaded filter
+        self.apply_filters.emit(filters)

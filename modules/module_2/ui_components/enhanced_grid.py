@@ -134,10 +134,21 @@ class EnhancedDataGrid(QWidget):
             self.sort_column = column
             self.sort_order = Qt.SortOrder.AscendingOrder
         
-        # Sort data
+        # Sort data with proper type handling
+        def sort_key(row):
+            value = row[column]
+            if value is None:
+                # None values sort to the end
+                return (1, 0)
+            elif isinstance(value, (int, float)):
+                # Numbers sort numerically
+                return (0, value)
+            else:
+                # Strings sort alphabetically (case-insensitive)
+                return (0, str(value).lower())
+        
         reverse = self.sort_order == Qt.SortOrder.DescendingOrder
-        self.filtered_data.sort(key=lambda x: x[column] if x[column] is not None else "", 
-                               reverse=reverse)
+        self.filtered_data.sort(key=sort_key, reverse=reverse)
         
         self.refresh_display()
         self.status_label.setText(f"Sorted by {self.columns[column]}")

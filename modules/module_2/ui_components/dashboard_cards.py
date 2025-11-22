@@ -58,6 +58,7 @@ class MetricCard(DashboardCard):
         self.icon = icon
         self.subtitle = subtitle
         self.trend = trend
+        self.value_label = None  # Store reference for updates
         
         self.build_content()
     
@@ -82,13 +83,13 @@ class MetricCard(DashboardCard):
         
         layout.addLayout(header_layout)
         
-        # Value
-        value_label = QLabel(self.value)
+        # Value - store reference for updates
+        self.value_label = QLabel(self.value)
         value_font = QFont()
         value_font.setPointSize(32)
         value_font.setBold(True)
-        value_label.setFont(value_font)
-        layout.addWidget(value_label)
+        self.value_label.setFont(value_font)
+        layout.addWidget(self.value_label)
         
         # Subtitle and trend
         if self.subtitle or self.trend:
@@ -113,15 +114,8 @@ class MetricCard(DashboardCard):
     def update_value(self, value: str):
         """Update the metric value"""
         self.value = value
-        # Find and update the value label
-        for i in range(self.layout().count()):
-            item = self.layout().itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), QLabel):
-                widget = item.widget()
-                font = widget.font()
-                if font.pointSize() == 32:  # This is our value label
-                    widget.setText(value)
-                    break
+        if self.value_label:
+            self.value_label.setText(value)
 
 
 class StatisticsCard(DashboardCard):

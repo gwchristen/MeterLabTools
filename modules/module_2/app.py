@@ -565,9 +565,92 @@ class CreatedHistoriesApp(QMainWindow):
     
     def apply_filters(self, opco: str, device_type: str, filters: Dict):
         """Apply filters to grid"""
-        # This would implement the actual filtering logic
-        # For now, just reload data
-        self.load_sheet_data(opco, device_type)
+        sheet_name = f"{opco} - {device_type}"
+        view = self.sheet_views.get(sheet_name)
+        if not view:
+            return
+        
+        try:
+            # Get all data for the sheet
+            all_items = self.db.get_items_by_sheet(opco, device_type)
+            
+            # Apply filter conditions
+            logic = filters.get('logic', 'AND')
+            conditions = filters.get('conditions', [])
+            
+            if not conditions or not any(c.get('value') for c in conditions):
+                # No valid filters, show all data
+                view.grid.set_data(all_items)
+                return
+            
+            # Filter the data
+            filtered_items = []
+            
+            for item in all_items:
+                # Check each condition
+                condition_results = []
+                
+                for condition in conditions:
+                    field = condition.get('field', '')
+                    operator = condition.get('operator', '')
+                    value = condition.get('value', '')
+                    
+                    if not value:
+                        continue
+                    
+                    # Map field name to column index
+                    try:
+                        col_idx = self.COLUMNS.index(field)
+                        item_value = str(item[col_idx]) if item[col_idx] is not None else ""
+                    except (ValueError, IndexError):
+                        continue
+                    
+                    # Apply operator
+                    result = False
+                    value_lower = value.lower()
+                    item_value_lower = item_value.lower()
+                    
+                    if operator == "Contains":
+                        result = value_lower in item_value_lower
+                    elif operator == "Equals":
+                        result = item_value_lower == value_lower
+                    elif operator == "Starts with":
+                        result = item_value_lower.startswith(value_lower)
+                    elif operator == "Ends with":
+                        result = item_value_lower.endswith(value_lower)
+                    elif operator == "Greater than":
+                        try:
+                            result = float(item_value) > float(value)
+                        except (ValueError, TypeError):
+                            result = False
+                    elif operator == "Less than":
+                        try:
+                            result = float(item_value) < float(value)
+                        except (ValueError, TypeError):
+                            result = False
+                    elif operator == "Is empty":
+                        result = not item_value
+                    elif operator == "Is not empty":
+                        result = bool(item_value)
+                    
+                    condition_results.append(result)
+                
+                # Combine results based on logic
+                if condition_results:
+                    if logic == 'AND':
+                        if all(condition_results):
+                            filtered_items.append(item)
+                    else:  # OR
+                        if any(condition_results):
+                            filtered_items.append(item)
+            
+            # Update grid with filtered data
+            view.grid.set_data(filtered_items)
+            
+        except Exception as e:
+            print(f"Error applying filters: {e}")
+            # Fallback to showing all data
+            self.load_sheet_data(opco, device_type)
     
     def show_dashboard(self):
         """Show dashboard view"""
