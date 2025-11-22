@@ -93,17 +93,29 @@ The new UI is built on a modular component library that provides reusable, profe
 ┌─────────────────────────────────────────────────────────┐
 │ Menu Bar                                                 │
 ├────────────┬────────────────────────────────────────────┤
-│            │ Header (Breadcrumb + Status + Edit Mode)   │
+│            │ ☰ Header (Breadcrumb + Status + Edit Mode) │
 │            ├────────────────────────────────────────────┤
 │  Sidebar   │                                             │
-│            │                                             │
+│  (260px)   │                                             │
 │  - Dashboard│         Main Content Area                 │
 │  - Sheets   │      (Dashboard or Sheet View)            │
 │            │                                             │
-│            │                                             │
-│            │                                             │
+│  Collapsible│  Sidebar toggles: 260px ⟷ 50px          │
+│  via ☰ btn │  Keyboard shortcut: Alt+S                  │
 └────────────┴────────────────────────────────────────────┘
 ```
+
+### Collapsible Sidebar Feature
+
+The sidebar can be toggled between expanded (260px) and collapsed (50px) states:
+
+- **Expanded State (260px)**: Shows full navigation with icons and text labels
+- **Collapsed State (50px)**: Shows only icons with tooltips on hover
+- **Toggle Methods**:
+  - Click the hamburger menu (☰) button in the header
+  - Use keyboard shortcut: Alt+S
+  - View menu → Toggle Sidebar
+- **Benefits**: Maximizes content area when working with filters or large datasets
 
 ### Views
 
@@ -123,22 +135,49 @@ The default view showing overview metrics:
 #### 2. **Sheet Views**
 Individual views for each OpCo/Device Type combination:
 
-- **Toolbar** (top):
-  - Add, Edit, Delete buttons
+- **Toolbar** (top, optimized spacing):
+  - Add, Edit, Delete buttons (32px height, compact)
   - Import/Export functionality
   - Statistics button
   - Filter toggle
+  - Reduced spacing (8px between buttons)
+  - 13px font size for better fit
 
 - **Data Grid** (center):
   - All records for the selected sheet
   - Sortable columns
   - Hover effects
   - Double-click to edit
+  - Proper spacing when filters are open
+  - Status bar with row count
 
 - **Filter Sidebar** (right, toggle-able):
   - Advanced filter builder
   - Saved filter presets
   - Active filter count
+  - **Optimized width**: 280-320px (reduced from 320-400px)
+  - Compact combo boxes and spacing
+  - Better integration with grid
+
+### Layout Optimizations
+
+**Button Sizing**:
+- Header buttons: 32px height (reduced from 44px)
+- Toolbar buttons: 32px height with compact padding
+- Sidebar buttons: 36px height (reduced from 44px)
+- Hamburger menu: 36×36px square
+
+**Spacing Improvements**:
+- Content margins: 16px (reduced from 24px)
+- Header height: 60px (reduced from 70px)
+- Filter sidebar padding: 12px (reduced from 16px)
+- Filter conditions spacing: 6px between items
+- Removed unnecessary separators for cleaner look
+
+**Responsive Behavior**:
+- Collapsed sidebar (50px) + Filters (280-320px) + Grid = balanced layout
+- No awkward gaps or wasted space
+- Content area maximizes available screen space
 
 ### Navigation
 
