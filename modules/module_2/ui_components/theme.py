@@ -161,7 +161,6 @@ class ThemeManager:
                 border-radius: 6px;
                 font-weight: 600;
                 min-height: 36px;
-                transition: all 0.2s ease;
             }}
             
             QPushButton:hover {{

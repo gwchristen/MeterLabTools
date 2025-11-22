@@ -246,6 +246,14 @@ class CreatedHistoriesApp(QMainWindow):
         "M.E. #", "Pur. Code", "Est.", "Use", "Notes 1", "Notes 2"
     ]
     
+    # Sheet name mapping for import
+    SHEET_MAP = {
+        'OH - Meters': ('Ohio', 'Meters'),
+        'I&M - Meters': ('I&M', 'Meters'),
+        'OH - Transformers': ('Ohio', 'Transformers'),
+        'I&M - Transformers': ('I&M', 'Transformers'),
+    }
+    
     def __init__(self, parent_theme="Light"):
         super().__init__()
         
@@ -848,12 +856,6 @@ class CreatedHistoriesApp(QMainWindow):
             
             if file_path.endswith('.xlsx'):
                 wb = openpyxl.load_workbook(file_path)
-                sheet_map = {
-                    'OH - Meters': ('Ohio', 'Meters'),
-                    'I&M - Meters': ('I&M', 'Meters'),
-                    'OH - Transformers': ('Ohio', 'Transformers'),
-                    'I&M - Transformers': ('I&M', 'Transformers'),
-                }
                 
                 sheet_name = f"{'OH' if opco == 'Ohio' else 'I&M'} - {device_type}"
                 
