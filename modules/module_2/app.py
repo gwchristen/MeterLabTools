@@ -16,8 +16,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QLineEdit, QSpinBox, QDoubleSpinBox, QTextEdit,
                             QStackedWidget, QSplitter, QFrame, QScrollArea,
                             QGridLayout)
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal
+from PyQt6.QtGui import QFont, QShortcut, QKeySequence, QAction
 
 from inventory_db import InventoryDatabase
 from ui_components.theme import ThemeManager, ColorScheme
@@ -267,11 +267,23 @@ class CreatedHistoriesApp(QMainWindow):
         self.db = InventoryDatabase('created_histories.db')
         self.db.init_db()
         
+        # Sidebar state
+        self.sidebar_collapsed = False
+        self.sidebar_expanded_width = 260
+        self.sidebar_collapsed_width = 50
+        
         # Setup UI
         self.setup_ui()
         
+        # Setup keyboard shortcut for sidebar toggle
+        self.sidebar_shortcut = QShortcut(QKeySequence("Alt+S"), self)
+        self.sidebar_shortcut.activated.connect(self.toggle_sidebar)
+        
         # Apply theme
         self.apply_theme(self.current_theme)
+        
+        # Load sidebar state from database
+        self.load_sidebar_state()
         
         # Show dashboard by default
         self.show_dashboard()
@@ -333,6 +345,17 @@ class CreatedHistoriesApp(QMainWindow):
         layout = QHBoxLayout()
         layout.setContentsMargins(24, 12, 24, 12)
         
+        # Sidebar toggle button
+        self.sidebar_toggle_btn = QPushButton("☰")
+        self.sidebar_toggle_btn.setProperty("class", "secondary")
+        self.sidebar_toggle_btn.setMinimumSize(44, 44)
+        self.sidebar_toggle_btn.setMaximumSize(44, 44)
+        self.sidebar_toggle_btn.setToolTip("Toggle Sidebar (Alt+S)")
+        self.sidebar_toggle_btn.clicked.connect(self.toggle_sidebar)
+        self.sidebar_toggle_btn.setAccessibleName("Toggle Sidebar")
+        self.sidebar_toggle_btn.setAccessibleDescription("Collapse or expand the sidebar navigation")
+        layout.addWidget(self.sidebar_toggle_btn)
+        
         # Breadcrumb navigation
         breadcrumb_layout = QVBoxLayout()
         
@@ -362,28 +385,31 @@ class CreatedHistoriesApp(QMainWindow):
         return header
     
     def create_sidebar(self) -> QFrame:
-        """Create modern sidebar"""
+        """Create modern sidebar with collapsible support"""
         sidebar = QFrame()
         sidebar.setProperty("class", "sidebar")
-        sidebar.setMinimumWidth(260)
-        sidebar.setMaximumWidth(260)
+        sidebar.setMinimumWidth(self.sidebar_expanded_width)
+        sidebar.setMaximumWidth(self.sidebar_expanded_width)
         
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 24, 16, 16)
         layout.setSpacing(8)
         
         # Logo/Title
-        title = QLabel("📊 Created Histories")
-        title.setProperty("class", "subheading")
-        title.setStyleSheet("padding: 8px; margin-bottom: 16px;")
-        layout.addWidget(title)
+        self.sidebar_title = QLabel("📊 Created Histories")
+        self.sidebar_title.setProperty("class", "subheading")
+        self.sidebar_title.setStyleSheet("padding: 8px; margin-bottom: 16px;")
+        layout.addWidget(self.sidebar_title)
         
         # Dashboard button
         dashboard_btn = QPushButton("🏠 Dashboard")
         dashboard_btn.setProperty("class", "secondary")
         dashboard_btn.setMinimumHeight(44)
+        dashboard_btn.setToolTip("Dashboard")
         dashboard_btn.clicked.connect(self.show_dashboard)
+        dashboard_btn.setAccessibleName("Dashboard")
         layout.addWidget(dashboard_btn)
+        self.dashboard_btn = dashboard_btn
         
         # Separator
         separator = QFrame()
@@ -392,10 +418,10 @@ class CreatedHistoriesApp(QMainWindow):
         layout.addWidget(separator)
         
         # Sheets section
-        sheets_label = QLabel("SHEETS")
-        sheets_label.setProperty("class", "caption")
-        sheets_label.setStyleSheet("font-weight: 600; padding: 8px; text-transform: uppercase; letter-spacing: 0.5px;")
-        layout.addWidget(sheets_label)
+        self.sheets_label = QLabel("SHEETS")
+        self.sheets_label.setProperty("class", "caption")
+        self.sheets_label.setStyleSheet("font-weight: 600; padding: 8px; text-transform: uppercase; letter-spacing: 0.5px;")
+        layout.addWidget(self.sheets_label)
         
         # Sheet buttons
         self.sheet_buttons = {}
@@ -404,17 +430,19 @@ class CreatedHistoriesApp(QMainWindow):
             btn = QPushButton(f"📋 {sheet_name}")
             btn.setProperty("class", "secondary")
             btn.setMinimumHeight(44)
+            btn.setToolTip(sheet_name)
             btn.clicked.connect(lambda checked, name=sheet_name: self.show_sheet(name))
+            btn.setAccessibleName(sheet_name)
             layout.addWidget(btn)
             self.sheet_buttons[sheet_name] = btn
         
         layout.addStretch()
         
         # Version info
-        version_label = QLabel("v2.0.0")
-        version_label.setProperty("class", "caption")
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(version_label)
+        self.version_label = QLabel("v2.0.0")
+        self.version_label.setProperty("class", "caption")
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.version_label)
         
         sidebar.setLayout(layout)
         return sidebar
@@ -753,6 +781,106 @@ class CreatedHistoriesApp(QMainWindow):
                 else:
                     QMessageBox.warning(self, "Error", "Incorrect password")
     
+    def toggle_sidebar(self):
+        """Toggle sidebar collapsed/expanded state with animation"""
+        if self.sidebar_collapsed:
+            self.expand_sidebar()
+        else:
+            self.collapse_sidebar()
+    
+    def collapse_sidebar(self):
+        """Collapse sidebar with animation"""
+        # Create animation for width
+        self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+        self.sidebar_animation.setDuration(200)
+        self.sidebar_animation.setStartValue(self.sidebar_expanded_width)
+        self.sidebar_animation.setEndValue(self.sidebar_collapsed_width)
+        self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        # Also animate maximum width
+        self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
+        self.sidebar_max_animation.setDuration(200)
+        self.sidebar_max_animation.setStartValue(self.sidebar_expanded_width)
+        self.sidebar_max_animation.setEndValue(self.sidebar_collapsed_width)
+        self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        # Start animations
+        self.sidebar_animation.start()
+        self.sidebar_max_animation.start()
+        
+        # Update button texts to show only icons
+        self.dashboard_btn.setText("🏠")
+        for sheet_name, btn in self.sheet_buttons.items():
+            btn.setText("◆")
+        
+        # Hide text labels
+        self.sidebar_title.hide()
+        self.sheets_label.hide()
+        self.version_label.hide()
+        
+        # Update state
+        self.sidebar_collapsed = True
+        self.save_sidebar_state()
+    
+    def expand_sidebar(self):
+        """Expand sidebar with animation"""
+        # Create animation for width
+        self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+        self.sidebar_animation.setDuration(200)
+        self.sidebar_animation.setStartValue(self.sidebar_collapsed_width)
+        self.sidebar_animation.setEndValue(self.sidebar_expanded_width)
+        self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        # Also animate maximum width
+        self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
+        self.sidebar_max_animation.setDuration(200)
+        self.sidebar_max_animation.setStartValue(self.sidebar_collapsed_width)
+        self.sidebar_max_animation.setEndValue(self.sidebar_expanded_width)
+        self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        # Start animations
+        self.sidebar_animation.start()
+        self.sidebar_max_animation.start()
+        
+        # Restore button texts
+        self.dashboard_btn.setText("🏠 Dashboard")
+        for opco, device_type in self.SHEETS:
+            sheet_name = f"{opco} - {device_type}"
+            btn = self.sheet_buttons.get(sheet_name)
+            if btn:
+                btn.setText(f"📋 {sheet_name}")
+        
+        # Show text labels
+        self.sidebar_title.show()
+        self.sheets_label.show()
+        self.version_label.show()
+        
+        # Update state
+        self.sidebar_collapsed = False
+        self.save_sidebar_state()
+    
+    def save_sidebar_state(self):
+        """Save sidebar state to database"""
+        state = "collapsed" if self.sidebar_collapsed else "expanded"
+        self.db.set_preference("sidebar_state", state)
+        # Mark as manual when explicitly toggled
+        self.db.set_preference("sidebar_manual_state", "manual")
+    
+    def load_sidebar_state(self):
+        """Load sidebar state from database"""
+        state = self.db.get_preference("sidebar_state", "expanded")
+        if state == "collapsed":
+            # Set initial collapsed state without animation
+            self.sidebar.setMinimumWidth(self.sidebar_collapsed_width)
+            self.sidebar.setMaximumWidth(self.sidebar_collapsed_width)
+            self.dashboard_btn.setText("🏠")
+            for sheet_name, btn in self.sheet_buttons.items():
+                btn.setText("◆")
+            self.sidebar_title.hide()
+            self.sheets_label.hide()
+            self.version_label.hide()
+            self.sidebar_collapsed = True
+    
     def add_record(self, opco: str, device_type: str):
         """Add new record"""
         if not self.edit_mode:
@@ -1008,6 +1136,27 @@ class CreatedHistoriesApp(QMainWindow):
             "Created with PyQt6"
         )
         QMessageBox.information(self, "About", msg)
+    
+    def resizeEvent(self, event):
+        """Handle window resize for responsive behavior"""
+        super().resizeEvent(event)
+        
+        # Auto-collapse sidebar on screens < 1200px
+        window_width = event.size().width()
+        
+        if window_width < 1200:
+            # Auto-collapse if not already collapsed and wasn't manually collapsed
+            if not self.sidebar_collapsed:
+                # Check if this is a manual collapse or auto-collapse
+                manual_state = self.db.get_preference("sidebar_manual_state", "auto")
+                if manual_state == "auto":
+                    self.collapse_sidebar()
+        else:
+            # Auto-expand if window is wide enough and in auto mode
+            if self.sidebar_collapsed:
+                manual_state = self.db.get_preference("sidebar_manual_state", "auto")
+                if manual_state == "auto":
+                    self.expand_sidebar()
 
 
 def main():
