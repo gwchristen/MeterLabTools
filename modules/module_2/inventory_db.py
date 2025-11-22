@@ -1,6 +1,6 @@
 import sqlite3
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class InventoryDatabase:
@@ -192,7 +192,7 @@ class InventoryDatabase:
                 item.get('use'),
                 item.get('notes1'),
                 item.get('notes2'),
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             ))
             
             item_id = cursor.lastrowid
@@ -238,7 +238,7 @@ class InventoryDatabase:
                 item.get('use'),
                 item.get('notes1'),
                 item.get('notes2'),
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),
                 item_id
             ))
             
@@ -348,10 +348,33 @@ class InventoryDatabase:
                 ON CONFLICT(preference_key) DO UPDATE SET
                     preference_value = excluded.preference_value,
                     updated_at = excluded.updated_at
-            ''', (key, value, datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')))
+            ''', (key, value, datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')))
             conn.commit()
             conn.close()
             return True
         except sqlite3.Error as e:
             print(f"Error setting preference: {e}")
+            return False
+    
+    def set_preferences_batch(self, preferences: Dict[str, str]) -> bool:
+        """Set multiple user preferences in a single transaction"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            
+            for key, value in preferences.items():
+                cursor.execute('''
+                    INSERT INTO user_preferences (preference_key, preference_value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(preference_key) DO UPDATE SET
+                        preference_value = excluded.preference_value,
+                        updated_at = excluded.updated_at
+                ''', (key, value, timestamp))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except sqlite3.Error as e:
+            print(f"Error setting preferences: {e}")
             return False

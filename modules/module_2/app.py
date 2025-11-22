@@ -280,6 +280,7 @@ class CreatedHistoriesApp(QMainWindow):
         self.sidebar_manual_state_cache = None  # Cache for performance
         self.sidebar_animation = None  # Reusable animation object
         self.sidebar_max_animation = None  # Reusable animation object
+        self.last_responsive_width_state = None  # Track last responsive state to prevent duplicate triggers
         
         # Setup UI
         self.setup_ui()
@@ -891,9 +892,11 @@ class CreatedHistoriesApp(QMainWindow):
     def save_sidebar_state(self):
         """Save sidebar state to database"""
         state = "collapsed" if self.sidebar_collapsed else "expanded"
-        self.db.set_preference("sidebar_state", state)
-        # Mark as manual when explicitly toggled and cache the value
-        self.db.set_preference("sidebar_manual_state", self.SIDEBAR_STATE_MANUAL)
+        # Batch both preferences in a single database transaction for performance
+        self.db.set_preferences_batch({
+            "sidebar_state": state,
+            "sidebar_manual_state": self.SIDEBAR_STATE_MANUAL
+        })
         self.sidebar_manual_state_cache = self.SIDEBAR_STATE_MANUAL
     
     def load_sidebar_state(self):
@@ -1173,17 +1176,22 @@ class CreatedHistoriesApp(QMainWindow):
         if self.sidebar_manual_state_cache == self.SIDEBAR_STATE_MANUAL:
             return
         
-        # Auto-collapse sidebar on screens < RESPONSIVE_BREAKPOINT_WIDTH
+        # Check if we've crossed the responsive breakpoint threshold
         window_width = event.size().width()
+        is_below_breakpoint = window_width < self.RESPONSIVE_BREAKPOINT_WIDTH
         
-        if window_width < self.RESPONSIVE_BREAKPOINT_WIDTH:
-            # Auto-collapse if not already collapsed
-            if not self.sidebar_collapsed:
-                self.collapse_sidebar()
-        else:
-            # Auto-expand if window is wide enough
-            if self.sidebar_collapsed:
-                self.expand_sidebar()
+        # Only trigger if crossing the threshold (prevents repeated triggers)
+        if self.last_responsive_width_state != is_below_breakpoint:
+            self.last_responsive_width_state = is_below_breakpoint
+            
+            if is_below_breakpoint:
+                # Auto-collapse if not already collapsed
+                if not self.sidebar_collapsed:
+                    self.collapse_sidebar()
+            else:
+                # Auto-expand if window is wide enough
+                if self.sidebar_collapsed:
+                    self.expand_sidebar()
 
 
 def main():
