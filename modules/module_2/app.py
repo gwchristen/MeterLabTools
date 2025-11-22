@@ -846,7 +846,7 @@ class CreatedHistoriesApp(QMainWindow):
             # Disconnect any previous connections to avoid duplicates
             try:
                 self.sidebar_animation.finished.disconnect()
-            except:
+            except TypeError:
                 pass  # No previous connection
             
             # Update UI elements after animation completes
@@ -873,8 +873,6 @@ class CreatedHistoriesApp(QMainWindow):
         else:
             self._set_button_texts_expanded()
             self.sidebar_title.show()
-            self.sheets_label.show()
-            self.version_label.show()
             self.sheets_label.show()
             self.version_label.show()
     
@@ -1171,8 +1169,8 @@ class CreatedHistoriesApp(QMainWindow):
         """Handle window resize for responsive behavior"""
         super().resizeEvent(event)
         
-        # Only handle responsive behavior if in auto mode (use cached value for performance)
-        if self.sidebar_manual_state_cache != self.SIDEBAR_STATE_AUTO:
+        # Only handle responsive behavior if in auto mode (not manually set)
+        if self.sidebar_manual_state_cache == self.SIDEBAR_STATE_MANUAL:
             return
         
         # Auto-collapse sidebar on screens < RESPONSIVE_BREAKPOINT_WIDTH
