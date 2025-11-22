@@ -157,10 +157,10 @@ class ThemeManager:
                 background-color: {colors.primary};
                 color: white;
                 border: none;
-                padding: 8px 12px;
+                padding: 6px 12px;
                 border-radius: 6px;
                 font-weight: 600;
-                min-height: 36px;
+                min-height: 32px;
             }}
             
             QPushButton:hover {{
@@ -176,27 +176,60 @@ class ThemeManager:
                 color: {colors.text_disabled};
             }}
             
-            QPushButton[class="secondary"] {{
+            QPushButton[class~="secondary"] {{
                 background-color: {colors.surface};
                 color: {colors.text};
                 border: 2px solid {colors.border};
             }}
             
-            QPushButton[class="secondary"]:hover {{
+            QPushButton[class~="secondary"]:hover {{
                 background-color: {colors.surface_hover};
                 border-color: {colors.primary};
             }}
             
-            QPushButton[class="success"] {{
+            QPushButton[class~="success"] {{
                 background-color: {colors.success};
             }}
             
-            QPushButton[class="warning"] {{
+            QPushButton[class~="warning"] {{
                 background-color: {colors.warning};
             }}
             
-            QPushButton[class="error"] {{
+            QPushButton[class~="error"] {{
                 background-color: {colors.error};
+            }}
+            
+            /* Toolbar Buttons - Compact sizing */
+            QPushButton[class~="toolbar"] {{
+                min-height: 32px;
+                padding: 6px 10px;
+                font-size: 13px;
+            }}
+            
+            /* Header Buttons - Compact sizing */
+            QPushButton[class~="header-btn"] {{
+                min-height: 32px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }}
+            
+            /* Hamburger Menu Button */
+            QPushButton[class~="hamburger"] {{
+                background-color: transparent;
+                color: {colors.text};
+                border: 2px solid {colors.border};
+                border-radius: 6px;
+                min-width: 36px;
+                max-width: 36px;
+                min-height: 36px;
+                max-height: 36px;
+                padding: 6px;
+                font-size: 18px;
+            }}
+            
+            QPushButton[class~="hamburger"]:hover {{
+                background-color: {colors.surface_hover};
+                border-color: {colors.primary};
             }}
             
             /* Input Fields */
@@ -263,19 +296,19 @@ class ThemeManager:
                 background: transparent;
             }}
             
-            QLabel[class="heading"] {{
+            QLabel[class~="heading"] {{
                 font-size: 22px;
                 font-weight: 700;
                 color: {colors.text};
             }}
             
-            QLabel[class="subheading"] {{
+            QLabel[class~="subheading"] {{
                 font-size: 16px;
                 font-weight: 600;
                 color: {colors.text};
             }}
             
-            QLabel[class="caption"] {{
+            QLabel[class~="caption"] {{
                 font-size: 12px;
                 color: {colors.text_secondary};
             }}
@@ -433,14 +466,14 @@ class ThemeManager:
                 border-radius: 8px;
             }}
             
-            QFrame[class="card"] {{
+            QFrame[class~="card"] {{
                 background-color: {colors.surface};
                 border: 2px solid {colors.border};
                 border-radius: 12px;
                 padding: 16px;
             }}
             
-            QFrame[class="sidebar"] {{
+            QFrame[class~="sidebar"] {{
                 background-color: {colors.background_alt};
                 border-right: 2px solid {colors.border};
                 border-radius: 0px;

@@ -254,6 +254,7 @@ class CreatedHistoriesApp(QMainWindow):
         self.edit_mode = False
         self.current_theme = parent_theme
         self.current_sheet = None
+        self.sidebar_collapsed = False
         
         # Initialize database
         self.db = InventoryDatabase('created_histories.db')
@@ -319,14 +320,23 @@ class CreatedHistoriesApp(QMainWindow):
         """Create header with breadcrumb and actions"""
         header = QFrame()
         header.setFrameShape(QFrame.Shape.StyledPanel)
-        header.setMinimumHeight(70)
-        header.setMaximumHeight(70)
+        header.setMinimumHeight(60)
+        header.setMaximumHeight(60)
         
         layout = QHBoxLayout()
-        layout.setContentsMargins(24, 12, 24, 12)
+        layout.setContentsMargins(16, 12, 24, 12)
+        layout.setSpacing(12)
+        
+        # Hamburger menu button
+        self.hamburger_btn = QPushButton("☰")
+        self.hamburger_btn.setProperty("class", "hamburger")
+        self.hamburger_btn.setToolTip("Toggle Sidebar (Alt+S)")
+        self.hamburger_btn.clicked.connect(self.toggle_sidebar)
+        layout.addWidget(self.hamburger_btn)
         
         # Breadcrumb navigation
         breadcrumb_layout = QVBoxLayout()
+        breadcrumb_layout.setSpacing(2)
         
         self.breadcrumb_label = QLabel("Dashboard")
         self.breadcrumb_label.setProperty("class", "heading")
@@ -346,7 +356,8 @@ class CreatedHistoriesApp(QMainWindow):
         
         # Edit mode toggle
         self.toggle_mode_btn = QPushButton("🔓 Enable Edit Mode")
-        self.toggle_mode_btn.setMinimumWidth(160)
+        self.toggle_mode_btn.setProperty("class", "header-btn")
+        self.toggle_mode_btn.setMinimumWidth(140)
         self.toggle_mode_btn.clicked.connect(self.toggle_edit_mode)
         layout.addWidget(self.toggle_mode_btn)
         
@@ -365,29 +376,24 @@ class CreatedHistoriesApp(QMainWindow):
         layout.setSpacing(8)
         
         # Logo/Title
-        title = QLabel("📊 Created Histories")
-        title.setProperty("class", "subheading")
-        title.setStyleSheet("padding: 8px; margin-bottom: 16px;")
-        layout.addWidget(title)
+        self.sidebar_title = QLabel("📊 Created Histories")
+        self.sidebar_title.setProperty("class", "subheading")
+        self.sidebar_title.setStyleSheet("padding: 8px;")
+        layout.addWidget(self.sidebar_title)
         
         # Dashboard button
-        dashboard_btn = QPushButton("🏠 Dashboard")
-        dashboard_btn.setProperty("class", "secondary")
-        dashboard_btn.setMinimumHeight(44)
-        dashboard_btn.clicked.connect(self.show_dashboard)
-        layout.addWidget(dashboard_btn)
+        self.dashboard_btn = QPushButton("🏠 Dashboard")
+        self.dashboard_btn.setProperty("class", "secondary")
+        self.dashboard_btn.setMinimumHeight(36)
+        self.dashboard_btn.setToolTip("Dashboard")
+        self.dashboard_btn.clicked.connect(self.show_dashboard)
+        layout.addWidget(self.dashboard_btn)
         
-        # Separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("margin: 12px 0;")
-        layout.addWidget(separator)
-        
-        # Sheets section
-        sheets_label = QLabel("SHEETS")
-        sheets_label.setProperty("class", "caption")
-        sheets_label.setStyleSheet("font-weight: 600; padding: 8px; text-transform: uppercase; letter-spacing: 0.5px;")
-        layout.addWidget(sheets_label)
+        # Sheets section label
+        self.sheets_label = QLabel("SHEETS")
+        self.sheets_label.setProperty("class", "caption")
+        self.sheets_label.setStyleSheet("font-weight: 600; padding: 8px 8px 4px 8px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px;")
+        layout.addWidget(self.sheets_label)
         
         # Sheet buttons
         self.sheet_buttons = {}
@@ -395,7 +401,8 @@ class CreatedHistoriesApp(QMainWindow):
             sheet_name = f"{opco} - {device_type}"
             btn = QPushButton(f"📋 {sheet_name}")
             btn.setProperty("class", "secondary")
-            btn.setMinimumHeight(44)
+            btn.setMinimumHeight(36)
+            btn.setToolTip(sheet_name)
             btn.clicked.connect(lambda checked, name=sheet_name: self.show_sheet(name))
             layout.addWidget(btn)
             self.sheet_buttons[sheet_name] = btn
@@ -403,10 +410,10 @@ class CreatedHistoriesApp(QMainWindow):
         layout.addStretch()
         
         # Version info
-        version_label = QLabel("v2.0.0")
-        version_label.setProperty("class", "caption")
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(version_label)
+        self.version_label = QLabel("v2.0.0")
+        self.version_label.setProperty("class", "caption")
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.version_label)
         
         sidebar.setLayout(layout)
         return sidebar
@@ -419,12 +426,12 @@ class CreatedHistoriesApp(QMainWindow):
         
         container = QWidget()
         layout = QVBoxLayout()
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(24)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(20)
         
         # Metrics cards
         metrics_layout = QGridLayout()
-        metrics_layout.setSpacing(16)
+        metrics_layout.setSpacing(12)
         
         self.total_records_card = MetricCard("Total Records", "0", "📊")
         metrics_layout.addWidget(self.total_records_card, 0, 0)
@@ -446,7 +453,7 @@ class CreatedHistoriesApp(QMainWindow):
         layout.addWidget(sheets_label)
         
         sheets_grid = QGridLayout()
-        sheets_grid.setSpacing(16)
+        sheets_grid.setSpacing(12)
         
         self.sheet_stats_cards = {}
         for idx, (opco, device_type) in enumerate(self.SHEETS):
@@ -474,46 +481,47 @@ class CreatedHistoriesApp(QMainWindow):
         # Main content
         content_widget = QWidget()
         content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(24, 16, 24, 16)
-        content_layout.setSpacing(16)
+        content_layout.setContentsMargins(16, 12, 16, 12)
+        content_layout.setSpacing(12)
         
         # Toolbar
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setSpacing(8)
         
         add_btn = QPushButton("➕ Add Record")
+        add_btn.setProperty("class", "toolbar")
         add_btn.clicked.connect(lambda: self.add_record(opco, device_type))
         toolbar_layout.addWidget(add_btn)
         
         edit_btn = QPushButton("✏️ Edit")
-        edit_btn.setProperty("class", "secondary")
+        edit_btn.setProperty("class", "toolbar secondary")
         edit_btn.clicked.connect(lambda: self.edit_record(opco, device_type))
         toolbar_layout.addWidget(edit_btn)
         
         delete_btn = QPushButton("🗑️ Delete")
-        delete_btn.setProperty("class", "error")
+        delete_btn.setProperty("class", "toolbar error")
         delete_btn.clicked.connect(lambda: self.delete_record(opco, device_type))
         toolbar_layout.addWidget(delete_btn)
         
         toolbar_layout.addStretch()
         
         import_btn = QPushButton("📥 Import")
-        import_btn.setProperty("class", "secondary")
+        import_btn.setProperty("class", "toolbar secondary")
         import_btn.clicked.connect(lambda: self.import_data(opco, device_type))
         toolbar_layout.addWidget(import_btn)
         
         export_btn = QPushButton("📤 Export")
-        export_btn.setProperty("class", "secondary")
+        export_btn.setProperty("class", "toolbar secondary")
         export_btn.clicked.connect(lambda: self.export_data(opco, device_type))
         toolbar_layout.addWidget(export_btn)
         
         stats_btn = QPushButton("📊 Statistics")
-        stats_btn.setProperty("class", "secondary")
+        stats_btn.setProperty("class", "toolbar secondary")
         stats_btn.clicked.connect(lambda: self.show_statistics(opco, device_type))
         toolbar_layout.addWidget(stats_btn)
         
         filter_btn = QPushButton("🔽 Filters")
-        filter_btn.setProperty("class", "secondary")
+        filter_btn.setProperty("class", "toolbar secondary")
         filter_btn.setCheckable(True)
         filter_btn.clicked.connect(lambda checked: self.toggle_filters(opco, device_type, checked))
         toolbar_layout.addWidget(filter_btn)
@@ -562,6 +570,38 @@ class CreatedHistoriesApp(QMainWindow):
                 view.filter_sidebar.show()
             else:
                 view.filter_sidebar.hide()
+    
+    def toggle_sidebar(self):
+        """Toggle sidebar collapsed/expanded state"""
+        self.sidebar_collapsed = not self.sidebar_collapsed
+        
+        if self.sidebar_collapsed:
+            # Collapse sidebar to 50px
+            self.sidebar.setMinimumWidth(50)
+            self.sidebar.setMaximumWidth(50)
+            # Hide text labels, show only icons
+            self.sidebar_title.hide()
+            self.sheets_label.hide()
+            self.version_label.hide()
+            # Update button text to icons only
+            self.dashboard_btn.setText("🏠")
+            for btn in self.sheet_buttons.values():
+                btn.setText("📋")
+        else:
+            # Expand sidebar to 260px
+            self.sidebar.setMinimumWidth(260)
+            self.sidebar.setMaximumWidth(260)
+            # Show text labels
+            self.sidebar_title.show()
+            self.sheets_label.show()
+            self.version_label.show()
+            # Restore button text
+            self.dashboard_btn.setText("🏠 Dashboard")
+            for opco, device_type in self.SHEETS:
+                sheet_name = f"{opco} - {device_type}"
+                btn = self.sheet_buttons.get(sheet_name)
+                if btn:
+                    btn.setText(f"📋 {sheet_name}")
     
     def apply_filters(self, opco: str, device_type: str, filters: Dict):
         """Apply filters to grid"""
@@ -893,6 +933,9 @@ class CreatedHistoriesApp(QMainWindow):
         
         view_menu = menubar.addMenu('View')
         view_menu.addAction('Dashboard', self.show_dashboard)
+        view_menu.addSeparator()
+        toggle_sidebar_action = view_menu.addAction('Toggle Sidebar', self.toggle_sidebar)
+        toggle_sidebar_action.setShortcut('Alt+S')
         view_menu.addSeparator()
         view_menu.addAction('Light Theme', lambda: self.apply_theme("Light"))
         view_menu.addAction('Dark Theme', lambda: self.apply_theme("Dark"))

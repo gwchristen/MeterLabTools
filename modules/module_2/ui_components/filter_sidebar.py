@@ -22,13 +22,13 @@ class FilterCondition(QFrame):
     def setup_ui(self):
         """Setup condition UI"""
         layout = QHBoxLayout()
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
         
         # Field selector
         self.field_combo = QComboBox()
         self.field_combo.addItems(self.fields)
-        self.field_combo.setMinimumWidth(150)
+        self.field_combo.setMinimumWidth(100)
         layout.addWidget(self.field_combo)
         
         # Operator selector
@@ -43,7 +43,7 @@ class FilterCondition(QFrame):
             "Is empty",
             "Is not empty"
         ])
-        self.operator_combo.setMinimumWidth(120)
+        self.operator_combo.setMinimumWidth(90)
         layout.addWidget(self.operator_combo)
         
         # Value input
@@ -85,7 +85,7 @@ class FilterBuilder(QWidget):
         """Setup builder UI"""
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
         
         # Logic selector
         logic_layout = QHBoxLayout()
@@ -94,7 +94,7 @@ class FilterBuilder(QWidget):
         
         self.logic_combo = QComboBox()
         self.logic_combo.addItems(["All conditions (AND)", "Any condition (OR)"])
-        self.logic_combo.setMinimumWidth(180)
+        self.logic_combo.setMinimumWidth(140)
         logic_layout.addWidget(self.logic_combo)
         logic_layout.addStretch()
         
@@ -104,7 +104,7 @@ class FilterBuilder(QWidget):
         self.conditions_container = QWidget()
         self.conditions_layout = QVBoxLayout()
         self.conditions_layout.setContentsMargins(0, 0, 0, 0)
-        self.conditions_layout.setSpacing(8)
+        self.conditions_layout.setSpacing(6)
         self.conditions_container.setLayout(self.conditions_layout)
         
         scroll = QScrollArea()
@@ -171,8 +171,8 @@ class FilterSidebar(QFrame):
     def setup_ui(self):
         """Setup sidebar UI"""
         layout = QVBoxLayout()
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
         
         # Title
         title = QLabel("Filters")
@@ -221,8 +221,8 @@ class FilterSidebar(QFrame):
         layout.addWidget(clear_btn)
         
         self.setLayout(layout)
-        self.setMinimumWidth(320)
-        self.setMaximumWidth(400)
+        self.setMinimumWidth(280)
+        self.setMaximumWidth(320)
     
     def on_filters_changed(self):
         """Handle filter changes"""
