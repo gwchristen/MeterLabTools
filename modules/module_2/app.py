@@ -277,6 +277,9 @@ class CreatedHistoriesApp(QMainWindow):
         
         # Sidebar state
         self.sidebar_collapsed = False
+        self.sidebar_manual_state_cache = None  # Cache for performance
+        self.sidebar_animation = None  # Reusable animation object
+        self.sidebar_max_animation = None  # Reusable animation object
         
         # Setup UI
         self.setup_ui()
@@ -812,10 +815,18 @@ class CreatedHistoriesApp(QMainWindow):
     def _update_sidebar_visual_state(self, collapsed: bool, animate: bool = True):
         """Update sidebar visual state (width, buttons, labels)"""
         if animate:
-            # Create animation for width
-            self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+            # Stop any existing animations to prevent conflicts
+            if self.sidebar_animation is not None and self.sidebar_animation.state() == QPropertyAnimation.State.Running:
+                self.sidebar_animation.stop()
+            if self.sidebar_max_animation is not None and self.sidebar_max_animation.state() == QPropertyAnimation.State.Running:
+                self.sidebar_max_animation.stop()
+            
+            # Create or reuse animation objects
+            if self.sidebar_animation is None:
+                self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+                self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
+            
             self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
-            self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
             self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
             
             if collapsed:
@@ -832,6 +843,15 @@ class CreatedHistoriesApp(QMainWindow):
             self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
             self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
             
+            # Disconnect any previous connections to avoid duplicates
+            try:
+                self.sidebar_animation.finished.disconnect()
+            except:
+                pass  # No previous connection
+            
+            # Update UI elements after animation completes
+            self.sidebar_animation.finished.connect(lambda: self._update_sidebar_ui_elements(collapsed))
+            
             # Start animations
             self.sidebar_animation.start()
             self.sidebar_max_animation.start()
@@ -840,7 +860,10 @@ class CreatedHistoriesApp(QMainWindow):
             width = self.SIDEBAR_COLLAPSED_WIDTH if collapsed else self.SIDEBAR_EXPANDED_WIDTH
             self.sidebar.setMinimumWidth(width)
             self.sidebar.setMaximumWidth(width)
-        
+            self._update_sidebar_ui_elements(collapsed)
+    
+    def _update_sidebar_ui_elements(self, collapsed: bool):
+        """Update button texts and labels based on collapsed state"""
         # Update button texts and labels
         if collapsed:
             self._set_button_texts_collapsed()
@@ -850,6 +873,8 @@ class CreatedHistoriesApp(QMainWindow):
         else:
             self._set_button_texts_expanded()
             self.sidebar_title.show()
+            self.sheets_label.show()
+            self.version_label.show()
             self.sheets_label.show()
             self.version_label.show()
     
@@ -869,12 +894,16 @@ class CreatedHistoriesApp(QMainWindow):
         """Save sidebar state to database"""
         state = "collapsed" if self.sidebar_collapsed else "expanded"
         self.db.set_preference("sidebar_state", state)
-        # Mark as manual when explicitly toggled
+        # Mark as manual when explicitly toggled and cache the value
         self.db.set_preference("sidebar_manual_state", self.SIDEBAR_STATE_MANUAL)
+        self.sidebar_manual_state_cache = self.SIDEBAR_STATE_MANUAL
     
     def load_sidebar_state(self):
         """Load sidebar state from database"""
         state = self.db.get_preference("sidebar_state", "expanded")
+        # Load and cache manual state
+        self.sidebar_manual_state_cache = self.db.get_preference("sidebar_manual_state", self.SIDEBAR_STATE_AUTO)
+        
         if state == "collapsed":
             # Set initial collapsed state without animation
             self._update_sidebar_visual_state(collapsed=True, animate=False)
@@ -1142,22 +1171,21 @@ class CreatedHistoriesApp(QMainWindow):
         """Handle window resize for responsive behavior"""
         super().resizeEvent(event)
         
+        # Only handle responsive behavior if in auto mode (use cached value for performance)
+        if self.sidebar_manual_state_cache != self.SIDEBAR_STATE_AUTO:
+            return
+        
         # Auto-collapse sidebar on screens < RESPONSIVE_BREAKPOINT_WIDTH
         window_width = event.size().width()
         
         if window_width < self.RESPONSIVE_BREAKPOINT_WIDTH:
-            # Auto-collapse if not already collapsed and wasn't manually collapsed
+            # Auto-collapse if not already collapsed
             if not self.sidebar_collapsed:
-                # Check if this is a manual collapse or auto-collapse
-                manual_state = self.db.get_preference("sidebar_manual_state", self.SIDEBAR_STATE_AUTO)
-                if manual_state == self.SIDEBAR_STATE_AUTO:
-                    self.collapse_sidebar()
+                self.collapse_sidebar()
         else:
-            # Auto-expand if window is wide enough and in auto mode
+            # Auto-expand if window is wide enough
             if self.sidebar_collapsed:
-                manual_state = self.db.get_preference("sidebar_manual_state", self.SIDEBAR_STATE_AUTO)
-                if manual_state == self.SIDEBAR_STATE_AUTO:
-                    self.expand_sidebar()
+                self.expand_sidebar()
 
 
 def main():
