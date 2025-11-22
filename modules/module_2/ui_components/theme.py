@@ -157,7 +157,7 @@ class ThemeManager:
                 background-color: {colors.primary};
                 color: white;
                 border: none;
-                padding: 10px 16px;
+                padding: 8px 12px;
                 border-radius: 6px;
                 font-weight: 600;
                 min-height: 36px;
@@ -202,12 +202,12 @@ class ThemeManager:
             /* Input Fields */
             QLineEdit, QTextEdit, QPlainTextEdit {{
                 border: 2px solid {colors.border};
-                padding: 8px 12px;
+                padding: 6px 10px;
                 border-radius: 6px;
                 background-color: {colors.surface};
                 color: {colors.text};
                 selection-background-color: {colors.primary_light};
-                min-height: 36px;
+                min-height: 32px;
             }}
             
             QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{
@@ -224,11 +224,11 @@ class ThemeManager:
             /* Spinboxes and ComboBoxes */
             QSpinBox, QDoubleSpinBox, QComboBox {{
                 border: 2px solid {colors.border};
-                padding: 8px 12px;
+                padding: 6px 10px;
                 border-radius: 6px;
                 background-color: {colors.surface};
                 color: {colors.text};
-                min-height: 36px;
+                min-height: 32px;
             }}
             
             QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
@@ -264,13 +264,13 @@ class ThemeManager:
             }}
             
             QLabel[class="heading"] {{
-                font-size: 24px;
+                font-size: 22px;
                 font-weight: 700;
                 color: {colors.text};
             }}
             
             QLabel[class="subheading"] {{
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 600;
                 color: {colors.text};
             }}
@@ -291,7 +291,7 @@ class ThemeManager:
             }}
             
             QTableWidget::item {{
-                padding: 8px;
+                padding: 6px 8px;
                 border: none;
             }}
             
@@ -307,7 +307,7 @@ class ThemeManager:
             QHeaderView::section {{
                 background-color: {colors.grid_header};
                 color: white;
-                padding: 12px 8px;
+                padding: 10px 8px;
                 border: none;
                 font-weight: 600;
                 font-size: 13px;

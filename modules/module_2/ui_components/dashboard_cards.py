@@ -19,12 +19,12 @@ class DashboardCard(QFrame):
     
     def setup_ui(self):
         """Setup card UI"""
-        self.setMinimumHeight(120)
-        self.setMaximumHeight(200)
+        self.setMinimumHeight(100)
+        self.setMaximumHeight(180)
         
         layout = QVBoxLayout()
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(8)
         
         self.setLayout(layout)
     
@@ -71,7 +71,7 @@ class MetricCard(DashboardCard):
         
         if self.icon:
             icon_label = QLabel(self.icon)
-            icon_label.setStyleSheet("font-size: 24px; background: transparent;")
+            icon_label.setStyleSheet("font-size: 20px; background: transparent;")
             header_layout.addWidget(icon_label)
         
         title_label = QLabel(self.title)
@@ -86,7 +86,7 @@ class MetricCard(DashboardCard):
         # Value - store reference for updates
         self.value_label = QLabel(self.value)
         value_font = QFont()
-        value_font.setPointSize(32)
+        value_font.setPointSize(28)
         value_font.setBold(True)
         self.value_label.setFont(value_font)
         layout.addWidget(self.value_label)
@@ -125,7 +125,7 @@ class StatisticsCard(DashboardCard):
         self.title = title
         self.stats = stats
         super().__init__(parent)
-        self.setMinimumHeight(180)
+        self.setMinimumHeight(160)
         self.build_content()
     
     def build_content(self):
