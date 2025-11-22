@@ -382,12 +382,12 @@ class CreatedHistoriesApp(QMainWindow):
         layout.addWidget(self.sidebar_title)
         
         # Dashboard button
-        dashboard_btn = QPushButton("🏠 Dashboard")
-        dashboard_btn.setProperty("class", "secondary")
-        dashboard_btn.setMinimumHeight(36)
-        dashboard_btn.setToolTip("Dashboard")
-        dashboard_btn.clicked.connect(self.show_dashboard)
-        layout.addWidget(dashboard_btn)
+        self.dashboard_btn = QPushButton("🏠 Dashboard")
+        self.dashboard_btn.setProperty("class", "secondary")
+        self.dashboard_btn.setMinimumHeight(36)
+        self.dashboard_btn.setToolTip("Dashboard")
+        self.dashboard_btn.clicked.connect(self.show_dashboard)
+        layout.addWidget(self.dashboard_btn)
         
         # Sheets section label
         self.sheets_label = QLabel("SHEETS")
@@ -584,6 +584,7 @@ class CreatedHistoriesApp(QMainWindow):
             self.sheets_label.hide()
             self.version_label.hide()
             # Update button text to icons only
+            self.dashboard_btn.setText("🏠")
             for btn in self.sheet_buttons.values():
                 btn.setText("📋")
         else:
@@ -595,6 +596,7 @@ class CreatedHistoriesApp(QMainWindow):
             self.sheets_label.show()
             self.version_label.show()
             # Restore button text
+            self.dashboard_btn.setText("🏠 Dashboard")
             for opco, device_type in self.SHEETS:
                 sheet_name = f"{opco} - {device_type}"
                 btn = self.sheet_buttons.get(sheet_name)
