@@ -29,7 +29,7 @@ class EnhancedDataGrid(QWidget):
         """Setup grid UI"""
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
         
         # Table
         self.table = QTableWidget()
@@ -45,6 +45,12 @@ class EnhancedDataGrid(QWidget):
         header.setStretchLastSection(True)
         header.setSectionsClickable(True)
         header.sectionClicked.connect(self.sort_by_column)
+        
+        # Configure vertical header (row numbers)
+        v_header = self.table.verticalHeader()
+        v_header.setDefaultSectionSize(32)  # Set row height
+        v_header.setMinimumSectionSize(28)
+        v_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         
         # Selection behavior
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -69,7 +75,7 @@ class EnhancedDataGrid(QWidget):
         """Create status bar"""
         status_frame = QFrame()
         status_layout = QHBoxLayout()
-        status_layout.setContentsMargins(8, 4, 8, 4)
+        status_layout.setContentsMargins(6, 3, 6, 3)
         
         self.status_label = QLabel("Ready")
         self.status_label.setProperty("class", "caption")

@@ -81,7 +81,8 @@ class ModernAddEditDialog(QDialog):
     def setup_ui(self):
         """Setup dialog UI with modern form builder"""
         layout = QVBoxLayout()
-        layout.setSpacing(16)
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 12, 16, 12)
         
         # Title
         title_label = QLabel("Edit Record" if self.item else "New Record")
@@ -349,17 +350,17 @@ class CreatedHistoriesApp(QMainWindow):
         """Create header with breadcrumb and actions"""
         header = QFrame()
         header.setFrameShape(QFrame.Shape.StyledPanel)
-        header.setMinimumHeight(70)
-        header.setMaximumHeight(70)
+        header.setMinimumHeight(64)
+        header.setMaximumHeight(64)
         
         layout = QHBoxLayout()
-        layout.setContentsMargins(24, 12, 24, 12)
+        layout.setContentsMargins(16, 8, 16, 8)
         
         # Sidebar toggle button
         self.sidebar_toggle_btn = QPushButton("☰")
         self.sidebar_toggle_btn.setProperty("class", "secondary")
-        self.sidebar_toggle_btn.setMinimumSize(44, 44)
-        self.sidebar_toggle_btn.setMaximumSize(44, 44)
+        self.sidebar_toggle_btn.setMinimumSize(36, 36)
+        self.sidebar_toggle_btn.setMaximumSize(36, 36)
         self.sidebar_toggle_btn.setToolTip("Toggle Sidebar (Alt+S)")
         self.sidebar_toggle_btn.clicked.connect(self.toggle_sidebar)
         self.sidebar_toggle_btn.setAccessibleName("Toggle Sidebar")
@@ -402,19 +403,19 @@ class CreatedHistoriesApp(QMainWindow):
         sidebar.setMaximumWidth(self.SIDEBAR_EXPANDED_WIDTH)
         
         layout = QVBoxLayout()
-        layout.setContentsMargins(16, 24, 16, 16)
+        layout.setContentsMargins(8, 12, 8, 8)
         layout.setSpacing(8)
         
         # Logo/Title
         self.sidebar_title = QLabel("📊 Created Histories")
         self.sidebar_title.setProperty("class", "subheading")
-        self.sidebar_title.setStyleSheet("padding: 8px; margin-bottom: 16px;")
+        self.sidebar_title.setStyleSheet("padding: 6px; margin-bottom: 12px;")
         layout.addWidget(self.sidebar_title)
         
         # Dashboard button
         dashboard_btn = QPushButton("🏠 Dashboard")
         dashboard_btn.setProperty("class", "secondary")
-        dashboard_btn.setMinimumHeight(44)
+        dashboard_btn.setMinimumHeight(40)
         dashboard_btn.setToolTip("Dashboard")
         dashboard_btn.clicked.connect(self.show_dashboard)
         dashboard_btn.setAccessibleName("Dashboard")
@@ -424,13 +425,13 @@ class CreatedHistoriesApp(QMainWindow):
         # Separator
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("margin: 12px 0;")
+        separator.setStyleSheet("margin: 8px 0;")
         layout.addWidget(separator)
         
         # Sheets section
         self.sheets_label = QLabel("SHEETS")
         self.sheets_label.setProperty("class", "caption")
-        self.sheets_label.setStyleSheet("font-weight: 600; padding: 8px; text-transform: uppercase; letter-spacing: 0.5px;")
+        self.sheets_label.setStyleSheet("font-weight: 600; padding: 6px; text-transform: uppercase; letter-spacing: 0.5px;")
         layout.addWidget(self.sheets_label)
         
         # Sheet buttons
@@ -439,7 +440,7 @@ class CreatedHistoriesApp(QMainWindow):
             sheet_name = f"{opco} - {device_type}"
             btn = QPushButton(f"📋 {sheet_name}")
             btn.setProperty("class", "secondary")
-            btn.setMinimumHeight(44)
+            btn.setMinimumHeight(40)
             btn.setToolTip(sheet_name)
             btn.clicked.connect(lambda checked, name=sheet_name: self.show_sheet(name))
             btn.setAccessibleName(sheet_name)
@@ -465,12 +466,12 @@ class CreatedHistoriesApp(QMainWindow):
         
         container = QWidget()
         layout = QVBoxLayout()
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(24)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
         
         # Metrics cards
         metrics_layout = QGridLayout()
-        metrics_layout.setSpacing(16)
+        metrics_layout.setSpacing(12)
         
         self.total_records_card = MetricCard("Total Records", "0", "📊")
         metrics_layout.addWidget(self.total_records_card, 0, 0)
@@ -492,7 +493,7 @@ class CreatedHistoriesApp(QMainWindow):
         layout.addWidget(sheets_label)
         
         sheets_grid = QGridLayout()
-        sheets_grid.setSpacing(16)
+        sheets_grid.setSpacing(12)
         
         self.sheet_stats_cards = {}
         for idx, (opco, device_type) in enumerate(self.SHEETS):
@@ -520,12 +521,12 @@ class CreatedHistoriesApp(QMainWindow):
         # Main content
         content_widget = QWidget()
         content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(24, 16, 24, 16)
-        content_layout.setSpacing(16)
+        content_layout.setContentsMargins(16, 12, 16, 12)
+        content_layout.setSpacing(12)
         
         # Toolbar
         toolbar_layout = QHBoxLayout()
-        toolbar_layout.setSpacing(8)
+        toolbar_layout.setSpacing(6)
         
         add_btn = QPushButton("➕ Add Record")
         add_btn.clicked.connect(lambda: self.add_record(opco, device_type))

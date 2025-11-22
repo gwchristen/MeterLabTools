@@ -22,13 +22,13 @@ class FieldGroup(QGroupBox):
     def setup_ui(self):
         """Setup group UI"""
         self.layout = QVBoxLayout()
-        self.layout.setContentsMargins(16, 20, 16, 16)
-        self.layout.setSpacing(12)
+        self.layout.setContentsMargins(12, 16, 12, 12)
+        self.layout.setSpacing(10)
         self.setLayout(self.layout)
         
         # Style the group box
         title_font = QFont()
-        title_font.setPointSize(13)
+        title_font.setPointSize(12)
         title_font.setBold(True)
         self.setFont(title_font)
     
@@ -133,7 +133,7 @@ class FormBuilder(QScrollArea):
         container = QWidget()
         self.main_layout = QVBoxLayout()
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(16)
+        self.main_layout.setSpacing(12)
         container.setLayout(self.main_layout)
         
         self.setWidget(container)
