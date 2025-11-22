@@ -16,8 +16,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QLineEdit, QSpinBox, QDoubleSpinBox, QTextEdit,
                             QStackedWidget, QSplitter, QFrame, QScrollArea,
                             QGridLayout)
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal
+from PyQt6.QtGui import QFont, QShortcut, QKeySequence, QAction
 
 from inventory_db import InventoryDatabase
 from ui_components.theme import ThemeManager, ColorScheme
@@ -254,6 +254,14 @@ class CreatedHistoriesApp(QMainWindow):
         'I&M - Transformers': ('I&M', 'Transformers'),
     }
     
+    # Sidebar configuration constants
+    SIDEBAR_EXPANDED_WIDTH = 260
+    SIDEBAR_COLLAPSED_WIDTH = 50
+    SIDEBAR_ANIMATION_DURATION = 200  # milliseconds
+    RESPONSIVE_BREAKPOINT_WIDTH = 1200  # pixels
+    SIDEBAR_STATE_AUTO = "auto"
+    SIDEBAR_STATE_MANUAL = "manual"
+    
     def __init__(self, parent_theme="Light"):
         super().__init__()
         
@@ -267,11 +275,25 @@ class CreatedHistoriesApp(QMainWindow):
         self.db = InventoryDatabase('created_histories.db')
         self.db.init_db()
         
+        # Sidebar state
+        self.sidebar_collapsed = False
+        self.sidebar_manual_state_cache = None  # Cache for performance
+        self.sidebar_animation = None  # Reusable animation object
+        self.sidebar_max_animation = None  # Reusable animation object
+        self.last_responsive_width_state = None  # Track last responsive state to prevent duplicate triggers
+        
         # Setup UI
         self.setup_ui()
         
+        # Setup keyboard shortcut for sidebar toggle
+        self.sidebar_shortcut = QShortcut(QKeySequence("Alt+S"), self)
+        self.sidebar_shortcut.activated.connect(self.toggle_sidebar)
+        
         # Apply theme
         self.apply_theme(self.current_theme)
+        
+        # Load sidebar state from database
+        self.load_sidebar_state()
         
         # Show dashboard by default
         self.show_dashboard()
@@ -333,6 +355,17 @@ class CreatedHistoriesApp(QMainWindow):
         layout = QHBoxLayout()
         layout.setContentsMargins(24, 12, 24, 12)
         
+        # Sidebar toggle button
+        self.sidebar_toggle_btn = QPushButton("☰")
+        self.sidebar_toggle_btn.setProperty("class", "secondary")
+        self.sidebar_toggle_btn.setMinimumSize(44, 44)
+        self.sidebar_toggle_btn.setMaximumSize(44, 44)
+        self.sidebar_toggle_btn.setToolTip("Toggle Sidebar (Alt+S)")
+        self.sidebar_toggle_btn.clicked.connect(self.toggle_sidebar)
+        self.sidebar_toggle_btn.setAccessibleName("Toggle Sidebar")
+        self.sidebar_toggle_btn.setAccessibleDescription("Collapse or expand the sidebar navigation")
+        layout.addWidget(self.sidebar_toggle_btn)
+        
         # Breadcrumb navigation
         breadcrumb_layout = QVBoxLayout()
         
@@ -362,28 +395,31 @@ class CreatedHistoriesApp(QMainWindow):
         return header
     
     def create_sidebar(self) -> QFrame:
-        """Create modern sidebar"""
+        """Create modern sidebar with collapsible support"""
         sidebar = QFrame()
         sidebar.setProperty("class", "sidebar")
-        sidebar.setMinimumWidth(260)
-        sidebar.setMaximumWidth(260)
+        sidebar.setMinimumWidth(self.SIDEBAR_EXPANDED_WIDTH)
+        sidebar.setMaximumWidth(self.SIDEBAR_EXPANDED_WIDTH)
         
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 24, 16, 16)
         layout.setSpacing(8)
         
         # Logo/Title
-        title = QLabel("📊 Created Histories")
-        title.setProperty("class", "subheading")
-        title.setStyleSheet("padding: 8px; margin-bottom: 16px;")
-        layout.addWidget(title)
+        self.sidebar_title = QLabel("📊 Created Histories")
+        self.sidebar_title.setProperty("class", "subheading")
+        self.sidebar_title.setStyleSheet("padding: 8px; margin-bottom: 16px;")
+        layout.addWidget(self.sidebar_title)
         
         # Dashboard button
         dashboard_btn = QPushButton("🏠 Dashboard")
         dashboard_btn.setProperty("class", "secondary")
         dashboard_btn.setMinimumHeight(44)
+        dashboard_btn.setToolTip("Dashboard")
         dashboard_btn.clicked.connect(self.show_dashboard)
+        dashboard_btn.setAccessibleName("Dashboard")
         layout.addWidget(dashboard_btn)
+        self.dashboard_btn = dashboard_btn
         
         # Separator
         separator = QFrame()
@@ -392,10 +428,10 @@ class CreatedHistoriesApp(QMainWindow):
         layout.addWidget(separator)
         
         # Sheets section
-        sheets_label = QLabel("SHEETS")
-        sheets_label.setProperty("class", "caption")
-        sheets_label.setStyleSheet("font-weight: 600; padding: 8px; text-transform: uppercase; letter-spacing: 0.5px;")
-        layout.addWidget(sheets_label)
+        self.sheets_label = QLabel("SHEETS")
+        self.sheets_label.setProperty("class", "caption")
+        self.sheets_label.setStyleSheet("font-weight: 600; padding: 8px; text-transform: uppercase; letter-spacing: 0.5px;")
+        layout.addWidget(self.sheets_label)
         
         # Sheet buttons
         self.sheet_buttons = {}
@@ -404,17 +440,19 @@ class CreatedHistoriesApp(QMainWindow):
             btn = QPushButton(f"📋 {sheet_name}")
             btn.setProperty("class", "secondary")
             btn.setMinimumHeight(44)
+            btn.setToolTip(sheet_name)
             btn.clicked.connect(lambda checked, name=sheet_name: self.show_sheet(name))
+            btn.setAccessibleName(sheet_name)
             layout.addWidget(btn)
             self.sheet_buttons[sheet_name] = btn
         
         layout.addStretch()
         
         # Version info
-        version_label = QLabel("v2.0.0")
-        version_label.setProperty("class", "caption")
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(version_label)
+        self.version_label = QLabel("v2.0.0")
+        self.version_label.setProperty("class", "caption")
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.version_label)
         
         sidebar.setLayout(layout)
         return sidebar
@@ -753,6 +791,125 @@ class CreatedHistoriesApp(QMainWindow):
                 else:
                     QMessageBox.warning(self, "Error", "Incorrect password")
     
+    def toggle_sidebar(self):
+        """Toggle sidebar collapsed/expanded state with animation"""
+        if self.sidebar_collapsed:
+            self.expand_sidebar()
+        else:
+            self.collapse_sidebar()
+    
+    def _set_button_texts_collapsed(self):
+        """Set button texts to icon-only mode"""
+        self.dashboard_btn.setText("🏠")
+        for sheet_name, btn in self.sheet_buttons.items():
+            btn.setText("◆")
+    
+    def _set_button_texts_expanded(self):
+        """Restore button texts to full mode"""
+        self.dashboard_btn.setText("🏠 Dashboard")
+        for opco, device_type in self.SHEETS:
+            sheet_name = f"{opco} - {device_type}"
+            btn = self.sheet_buttons.get(sheet_name)
+            if btn:
+                btn.setText(f"📋 {sheet_name}")
+    
+    def _update_sidebar_visual_state(self, collapsed: bool, animate: bool = True):
+        """Update sidebar visual state (width, buttons, labels)"""
+        if animate:
+            # Stop any existing animations to prevent conflicts
+            if self.sidebar_animation is not None and self.sidebar_animation.state() == QPropertyAnimation.State.Running:
+                self.sidebar_animation.stop()
+            if self.sidebar_max_animation is not None and self.sidebar_max_animation.state() == QPropertyAnimation.State.Running:
+                self.sidebar_max_animation.stop()
+            
+            # Create or reuse animation objects
+            if self.sidebar_animation is None:
+                self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
+                self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
+            
+            self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+            self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
+            
+            if collapsed:
+                self.sidebar_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
+                self.sidebar_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
+                self.sidebar_max_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
+                self.sidebar_max_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
+            else:
+                self.sidebar_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
+                self.sidebar_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
+                self.sidebar_max_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
+                self.sidebar_max_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
+            
+            self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            
+            # Disconnect any previous connections to avoid duplicates
+            try:
+                self.sidebar_animation.finished.disconnect()
+            except TypeError:
+                pass  # No previous connection
+            
+            # Update UI elements after animation completes
+            self.sidebar_animation.finished.connect(lambda: self._update_sidebar_ui_elements(collapsed))
+            
+            # Start animations
+            self.sidebar_animation.start()
+            self.sidebar_max_animation.start()
+        else:
+            # Set width immediately without animation
+            width = self.SIDEBAR_COLLAPSED_WIDTH if collapsed else self.SIDEBAR_EXPANDED_WIDTH
+            self.sidebar.setMinimumWidth(width)
+            self.sidebar.setMaximumWidth(width)
+            self._update_sidebar_ui_elements(collapsed)
+    
+    def _update_sidebar_ui_elements(self, collapsed: bool):
+        """Update button texts and labels based on collapsed state"""
+        # Update button texts and labels
+        if collapsed:
+            self._set_button_texts_collapsed()
+            self.sidebar_title.hide()
+            self.sheets_label.hide()
+            self.version_label.hide()
+        else:
+            self._set_button_texts_expanded()
+            self.sidebar_title.show()
+            self.sheets_label.show()
+            self.version_label.show()
+    
+    def collapse_sidebar(self):
+        """Collapse sidebar with animation"""
+        self._update_sidebar_visual_state(collapsed=True, animate=True)
+        self.sidebar_collapsed = True
+        self.save_sidebar_state()
+    
+    def expand_sidebar(self):
+        """Expand sidebar with animation"""
+        self._update_sidebar_visual_state(collapsed=False, animate=True)
+        self.sidebar_collapsed = False
+        self.save_sidebar_state()
+    
+    def save_sidebar_state(self):
+        """Save sidebar state to database"""
+        state = "collapsed" if self.sidebar_collapsed else "expanded"
+        # Batch both preferences in a single database transaction for performance
+        self.db.set_preferences_batch({
+            "sidebar_state": state,
+            "sidebar_manual_state": self.SIDEBAR_STATE_MANUAL
+        })
+        self.sidebar_manual_state_cache = self.SIDEBAR_STATE_MANUAL
+    
+    def load_sidebar_state(self):
+        """Load sidebar state from database"""
+        state = self.db.get_preference("sidebar_state", "expanded")
+        # Load and cache manual state
+        self.sidebar_manual_state_cache = self.db.get_preference("sidebar_manual_state", self.SIDEBAR_STATE_AUTO)
+        
+        if state == "collapsed":
+            # Set initial collapsed state without animation
+            self._update_sidebar_visual_state(collapsed=True, animate=False)
+            self.sidebar_collapsed = True
+    
     def add_record(self, opco: str, device_type: str):
         """Add new record"""
         if not self.edit_mode:
@@ -1003,11 +1160,38 @@ class CreatedHistoriesApp(QMainWindow):
             "• Enhanced data grid with sorting\n"
             "• Import/Export functionality\n"
             "• Password-protected edit mode\n"
+            "• Collapsible sidebar (Alt+S) with state persistence\n"
+            "• Responsive auto-collapse on small screens\n"
             "• WCAG 2.1 AA accessibility compliant\n"
             "• Light/Dark theme support\n\n"
             "Created with PyQt6"
         )
         QMessageBox.information(self, "About", msg)
+    
+    def resizeEvent(self, event):
+        """Handle window resize for responsive behavior"""
+        super().resizeEvent(event)
+        
+        # Only handle responsive behavior if in auto mode (not manually set)
+        if self.sidebar_manual_state_cache == self.SIDEBAR_STATE_MANUAL:
+            return
+        
+        # Check if we've crossed the responsive breakpoint threshold
+        window_width = event.size().width()
+        is_below_breakpoint = window_width < self.RESPONSIVE_BREAKPOINT_WIDTH
+        
+        # Only trigger if crossing the threshold (prevents repeated triggers)
+        if self.last_responsive_width_state != is_below_breakpoint:
+            self.last_responsive_width_state = is_below_breakpoint
+            
+            if is_below_breakpoint:
+                # Auto-collapse if not already collapsed
+                if not self.sidebar_collapsed:
+                    self.collapse_sidebar()
+            else:
+                # Auto-expand if window is wide enough
+                if self.sidebar_collapsed:
+                    self.expand_sidebar()
 
 
 def main():

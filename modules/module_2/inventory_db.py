@@ -1,6 +1,6 @@
 import sqlite3
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class InventoryDatabase:
@@ -59,6 +59,16 @@ class InventoryDatabase:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_dev_code ON inventory(dev_code)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_po_number ON inventory(po_number)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_recv_date ON inventory(recv_date)')
+            
+            # Create user preferences table for UI state persistence
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    preference_key TEXT UNIQUE NOT NULL,
+                    preference_value TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
             
             conn.commit()
             conn.close()
@@ -182,7 +192,7 @@ class InventoryDatabase:
                 item.get('use'),
                 item.get('notes1'),
                 item.get('notes2'),
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             ))
             
             item_id = cursor.lastrowid
@@ -228,7 +238,7 @@ class InventoryDatabase:
                 item.get('use'),
                 item.get('notes1'),
                 item.get('notes2'),
-                datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),
                 item_id
             ))
             
@@ -312,4 +322,59 @@ class InventoryDatabase:
             return True
         except sqlite3.Error as e:
             print(f"Error clearing sheet: {e}")
+            return False
+    
+    def get_preference(self, key: str, default: str = None) -> Optional[str]:
+        """Get a user preference value"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('SELECT preference_value FROM user_preferences WHERE preference_key = ?', (key,))
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result else default
+        except sqlite3.Error as e:
+            print(f"Error getting preference: {e}")
+            return default
+    
+    def set_preference(self, key: str, value: str) -> bool:
+        """Set a user preference value"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO user_preferences (preference_key, preference_value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(preference_key) DO UPDATE SET
+                    preference_value = excluded.preference_value,
+                    updated_at = excluded.updated_at
+            ''', (key, value, datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')))
+            conn.commit()
+            conn.close()
+            return True
+        except sqlite3.Error as e:
+            print(f"Error setting preference: {e}")
+            return False
+    
+    def set_preferences_batch(self, preferences: Dict[str, str]) -> bool:
+        """Set multiple user preferences in a single transaction"""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            
+            for key, value in preferences.items():
+                cursor.execute('''
+                    INSERT INTO user_preferences (preference_key, preference_value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(preference_key) DO UPDATE SET
+                        preference_value = excluded.preference_value,
+                        updated_at = excluded.updated_at
+                ''', (key, value, timestamp))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except sqlite3.Error as e:
+            print(f"Error setting preferences: {e}")
             return False

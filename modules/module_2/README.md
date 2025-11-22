@@ -25,12 +25,13 @@ python app.py
 ## What's New in v2.0
 
 ### 🎨 Modern UI
-- Professional sidebar navigation
+- Professional sidebar navigation with collapsible feature
 - Dashboard with real-time metrics
 - Enhanced data grid with sorting
 - Advanced filtering system
 - Light/Dark themes
 - WCAG 2.1 AA accessible
+- Responsive auto-collapse for smaller screens
 
 ### 📊 Dashboard
 - Total Records across all sheets
@@ -167,11 +168,23 @@ python app.py
 
 ## Keyboard Shortcuts
 
+- `Alt+S`: Toggle sidebar (collapse/expand)
 - `Tab`: Navigate fields
 - `Enter`: Submit/Activate
 - `Escape`: Close dialogs
 - `Arrow Keys`: Navigate table
 - `Space`: Toggle checkboxes
+
+## Sidebar Features
+
+### Collapsible Sidebar
+- **Toggle Button**: Click the ☰ button in the header to collapse/expand
+- **Keyboard Shortcut**: Press `Alt+S` to toggle
+- **Icon Mode**: When collapsed, shows only icons (🏠, ◆) with tooltips
+- **Smooth Animation**: 200ms width transition for professional feel
+- **State Persistence**: Remembers your preference between sessions
+- **Responsive**: Auto-collapses on screens < 1200px
+- **Accessibility**: Full keyboard support and screen reader compatible
 
 ## Technical Details
 
