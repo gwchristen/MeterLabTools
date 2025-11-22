@@ -34,6 +34,7 @@ env/
 .DS_Store
 
 # Database
+*.db
 *.db-journal
 
 # Logs
