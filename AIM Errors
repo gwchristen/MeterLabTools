@@ -1,74 +1,93 @@
 private FrameworkElement CreatePrintPageVisual(PrintablePage page)
 {
-    // Create the outer container with margins
+    // Use standard letter size at 96 DPI: 8.5" x 11" = 816 x 1056 pixels
+    // Subtract margins (40 each side) for content area: 736 x 976
+    double pageWidth = 816;
+    double pageHeight = 1056;
+    double contentWidth = pageWidth - 80;  // 736
+    double contentHeight = pageHeight - 80; // 976
+
+    // Create the outer container - this IS the page
     var outerGrid = new Grid
     {
-        Margin = new Thickness(40),
-        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+        Width = pageWidth,
+        Height = pageHeight,
+        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 255, 255, 255))
     };
 
-    // Create the page container
+    // Create the page container with margins for content
     var pageGrid = new Grid
     {
-        Background = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
-        Margin = new Thickness(0),
-        Padding = new Thickness(0)
+        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+        Margin = new Thickness(40),  // 40px margins on all sides
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        VerticalAlignment = VerticalAlignment.Stretch
     };
 
-    pageGrid. RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-    pageGrid. RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-    pageGrid. RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType. Star) });
-    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Header
+    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // SubHeader  
+    pageGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Content
+    pageGrid. RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Footer
 
     // ADD HEADER (Row 0)
     var headerText = new TextBlock
     {
-        Text = _viewModel?. FormData?.Header ?? string. Empty,
-        FontSize = 16,
-        FontWeight = Microsoft.UI.Text. FontWeights.Bold,
+        Text = _viewModel?. FormData?.Header ?? string.Empty,
+        FontSize = 18,
+        FontWeight = Microsoft. UI.Text.FontWeights. Bold,
         Margin = new Thickness(0, 0, 0, 5),
-        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0))
+        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+        HorizontalAlignment = HorizontalAlignment.Left
     };
     Grid.SetRow(headerText, 0);
-    pageGrid. Children.Add(headerText);
+    pageGrid.Children.Add(headerText);
 
     // ADD SUBHEADER (Row 1)
     var subHeaderText = new TextBlock
     {
-        Text = _viewModel?.FormData?.SubHeader ?? string.Empty,
+        Text = _viewModel?.FormData?. SubHeader ?? string.Empty,
         FontSize = 14,
         Margin = new Thickness(0, 0, 0, 10),
-        Foreground = new Microsoft. UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 0, 0, 0))
+        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 0, 0, 0)),
+        HorizontalAlignment = HorizontalAlignment.Left
     };
     Grid.SetRow(subHeaderText, 1);
     pageGrid.Children.Add(subHeaderText);
 
     // ADD CONTENT ROWS (Row 2)
-    var contentPanel = new StackPanel();
-    foreach (var row in page. Rows)
+    var contentPanel = new StackPanel
     {
-        var rowElement = CreatePrintRowVisual(row);
-        contentPanel. Children.Add(rowElement);
+        HorizontalAlignment = HorizontalAlignment. Stretch
+    };
+    
+    if (page.Rows != null)
+    {
+        foreach (var row in page.Rows)
+        {
+            var rowElement = CreatePrintRowVisual(row);
+            contentPanel. Children.Add(rowElement);
+        }
     }
     Grid.SetRow(contentPanel, 2);
-    pageGrid. Children.Add(contentPanel);
+    pageGrid.Children.Add(contentPanel);
 
     // ADD FOOTER (Row 3)
-    var footerPanel = new StackPanel { Orientation = Orientation.Horizontal };
-    footerPanel.Children. Add(new TextBlock
+    var footerText = new TextBlock
     {
-        Text = $"Generated: {_viewModel?.FormData?.Date} by {_viewModel?. FormData?.GeneratedBy}",
+        Text = $"Generated: {_viewModel?.FormData?.Date} by {_viewModel?.FormData?.GeneratedBy}",
         FontSize = 9,
-        Foreground = new Microsoft. UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 128, 128, 128))
-    });
-    Grid.SetRow(footerPanel, 3);
-    pageGrid.Children.Add(footerPanel);
+        Margin = new Thickness(0, 10, 0, 0),
+        Foreground = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color. FromArgb(255, 128, 128, 128)),
+        HorizontalAlignment = HorizontalAlignment.Left
+    };
+    Grid.SetRow(footerText, 3);
+    pageGrid.Children.Add(footerText);
 
-    outerGrid.Children. Add(pageGrid);
+    outerGrid. Children.Add(pageGrid);
 
-    // Force layout with standard letter size MINUS margins
-    pageGrid. Measure(new Windows.Foundation.Size(770, 1020));
-    pageGrid. Arrange(new Windows.Foundation.Rect(0, 0, 770, 1020));
+    // Force layout with explicit page dimensions
+    outerGrid.Measure(new Windows.Foundation.Size(pageWidth, pageHeight));
+    outerGrid.Arrange(new Windows.Foundation.Rect(0, 0, pageWidth, pageHeight));
 
     return outerGrid;
 }
