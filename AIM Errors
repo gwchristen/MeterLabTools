@@ -1,54 +1,13 @@
-protected override async void OnNavigatedTo(NavigationEventArgs e)
-{
-    base.OnNavigatedTo(e);
+System.ArgumentException
+  HResult=0x80070057
+  Message=The parameter is incorrect.
 
-    if (e.Parameter is PrintableForm form)
-    {
-        // DEBUG: Show what we received
-        var debugInfo = $"Received PrintableForm:\n" +
-                        $"- Header: {form.Header}\n" +
-                        $"- Pages count: {form.Pages?. Count ??  0}\n" +
-                        $"- PaginationLog count: {Services.PrintPaginationService.PaginationLog.Count}";
-        
-        if (form.Pages?. Count > 0)
-        {
-            var firstPage = form.Pages[0];
-            debugInfo += $"\n\nFirst Page:\n" +
-                         $"- Level2Header: {firstPage.Level2Header}\n" +
-                         $"- Rows count: {firstPage.Rows?. Count ?? 0}";
-            
-            if (firstPage. Rows?.Count > 0)
-            {
-                debugInfo += $"\n- First 5 rows:";
-                foreach (var row in firstPage. Rows. Take(5))
-                {
-                    debugInfo += $"\n  [{row.Type}] {row.Content?. Substring(0, Math.Min(30, row.Content?. Length ?? 0))}";
-                }
-            }
-        }
+This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+  Source=WinRT.Runtime
+  StackTrace:
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at AIM.Views.PrintableFormPage.<>c__DisplayClass6_0.<<OnNavigatedTo>b__0>d.MoveNext() in C:\Users\s245451\Documents\source\AIM\Views\PrintableFormPage.xaml.cs:line 83
 
-        var dialog = new ContentDialog
-        {
-            Title = "DEBUG: Form Data Received",
-            Content = new TextBlock 
-            { 
-                Text = debugInfo, 
-                TextWrapping = TextWrapping. Wrap,
-                IsTextSelectionEnabled = true
-            },
-            CloseButtonText = "OK",
-            XamlRoot = this.XamlRoot
-        };
-        
-        // Need to delay slightly for XamlRoot to be available
-        DispatcherQueue.TryEnqueue(async () =>
-        {
-            await Task.Delay(100);
-            await dialog.ShowAsync();
-        });
 
-        _viewModel?. LoadFormData(form);
-    }
-
-    RegisterForPrinting();
-}
