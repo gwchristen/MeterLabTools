@@ -1,171 +1,221 @@
-private FrameworkElement CreatePrintPageVisual(PrintablePage page)
+using AIM.Models;
+using System. Collections.Generic;
+using System. Diagnostics;
+
+namespace AIM.Services;
+
+public class PrintPaginationService : IPrintPaginationService
 {
-    double pageWidth = 816;
-    double pageHeight = 1056;
+    // Page dimensions at 96 DPI (8.5" x 11" letter size)
+    private const double PageHeight = 1056;
+    private const double PageWidth = 816;
+    private const double TopMargin = 40;
+    private const double BottomMargin = 40;
 
-    // REMOVE Width and Height constraints to see overflow
-    var outerGrid = new Grid
+    // Element heights - ADJUST THESE to match your actual rendered sizes
+    // If pages are cutting off too early, DECREASE these values
+    private const double HeaderHeight = 60;        // Page header with title, subtitle, initials (was 70)
+    private const double Level2HeaderHeight = 35;  // Yellow section header (was 40)
+    private const double Level3HeaderHeight = 24;  // Green/Blue/Red subsection headers (was 28)
+    private const double FileRowHeight = 20;       // Standard file row (was 24)
+    private const double BlankRowHeight = 20;      // Blank row
+    private const double FooterHeight = 40;        // Footer with page number (was 45)
+
+    // Minimum rows to include with a header (prevents orphaned headers)
+    private const int MinRowsWithLevel2Header = 3;
+    private const int MinRowsWithLevel3Header = 8;
+
+    /// <summary>
+    /// Calculates available content height per page. 
+    /// </summary>
+    private double GetAvailableContentHeight(bool hasLevel2Header)
     {
-        // Width = pageWidth,      // COMMENTED OUT
-        // Height = pageHeight,    // COMMENTED OUT
-        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
-    };
-
-    var pageGrid = new Grid
-    {
-        Background = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
-        Margin = new Thickness(40),
-        HorizontalAlignment = HorizontalAlignment. Stretch,
-        VerticalAlignment = VerticalAlignment. Stretch
-    };
-
-    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 0: Page Header
-    pageGrid. RowDefinitions. Add(new RowDefinition { Height = GridLength.Auto });      // Row 1: Level2 Header
-    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength. Auto });      // Row 2: Content - CHANGED FROM Star TO Auto
-    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength. Auto });      // Row 3: Footer
-
-    // ========== ROW 0: PAGE HEADER with Initials ==========
-    var headerBorder = new Border
-    {
-        Padding = new Thickness(12),
-        BorderBrush = new Microsoft. UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 0, 0, 0)),
-        BorderThickness = new Thickness(0, 0, 0, 2)
-    };
-
-    var headerGrid = new Grid();
-    headerGrid. ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-    headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength. Auto });
-
-    // Left side: Title and subtitle
-    var headerStackPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
-
-    // Determine header color based on content (matching HeaderColorConverter logic)
-    var headerColor = GetHeaderColor(page. PageHeader);
-
-    var headerText = new TextBlock
-    {
-        Text = page.PageHeader ??  _viewModel?. FormData?.Header ?? string.Empty,
-        FontSize = 22,
-        FontWeight = Microsoft.UI. Text.FontWeights.Bold,
-        Foreground = new Microsoft.UI. Xaml.Media. SolidColorBrush(headerColor)
-    };
-    headerStackPanel.Children.Add(headerText);
-
-    var subtitleText = new TextBlock
-    {
-        Text = "Inventory Summary",
-        FontSize = 12,
-        Foreground = new Microsoft. UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 102, 102, 102))
-    };
-    headerStackPanel.Children.Add(subtitleText);
-
-    Grid.SetColumn(headerStackPanel, 0);
-    headerGrid.Children. Add(headerStackPanel);
-
-    // Right side: Initials
-    var initialsText = new TextBlock
-    {
-        Text = "Initials: __________",
-        FontSize = 11,
-        Foreground = new Microsoft. UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 0, 0, 0)),
-        VerticalAlignment = VerticalAlignment.Top
-    };
-    Grid.SetColumn(initialsText, 1);
-    headerGrid.Children.Add(initialsText);
-
-    headerBorder.Child = headerGrid;
-    Grid.SetRow(headerBorder, 0);
-    pageGrid.Children.Add(headerBorder);
-
-    // ========== ROW 1: LEVEL 2 HEADER ==========
-    if (! string.IsNullOrEmpty(page. Level2Header))
-    {
-        var level2Border = new Border
+        double usedHeight = TopMargin + BottomMargin + HeaderHeight + FooterHeight;
+        if (hasLevel2Header)
         {
-            Background = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 243, 205)),
-            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
-            BorderThickness = new Thickness(1, 1, 1, 0),
-            Padding = new Thickness(8)
-        };
-
-        var level2Text = new TextBlock
-        {
-            Text = page.Level2Header + (page.IsContinuationPage ?  " (Continued)" : ""),
-            FontSize = 14,
-            FontWeight = Microsoft.UI. Text.FontWeights.Bold,
-            Foreground = new Microsoft.UI. Xaml.Media. SolidColorBrush(Windows. UI.Color.FromArgb(255, 0, 0, 0))
-        };
-        level2Border.Child = level2Text;
-
-        Grid.SetRow(level2Border, 1);
-        pageGrid.Children. Add(level2Border);
-    }
-
-    // ========== ROW 2: CONTENT ROWS ==========
-    var contentBorder = new Border
-    {
-        BorderBrush = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows.UI.Color. FromArgb(255, 0, 0, 0)),
-        BorderThickness = new Thickness(1),
-    };
-
-    var contentPanel = new StackPanel
-    {
-        HorizontalAlignment = HorizontalAlignment.Stretch
-    };
-
-    if (page.Rows != null)
-    {
-        foreach (var row in page. Rows)
-        {
-            var rowElement = CreatePrintRowVisual(row);
-            contentPanel. Children.Add(rowElement);
+            usedHeight += Level2HeaderHeight;
         }
+        double available = PageHeight - usedHeight;
+        
+        Debug.WriteLine($"=== GetAvailableContentHeight ===");
+        Debug.WriteLine($"Page Height: {PageHeight}");
+        Debug.WriteLine($"Used Height: {usedHeight} (Margins: {TopMargin + BottomMargin}, Header: {HeaderHeight}, Footer: {FooterHeight}, Level2: {(hasLevel2Header ? Level2HeaderHeight : 0)})");
+        Debug.WriteLine($"Available for content: {available}");
+        
+        return available;
     }
 
-    contentBorder.Child = contentPanel;
-    Grid.SetRow(contentBorder, 2);
-    pageGrid.Children. Add(contentBorder);
-
-    // ========== ROW 3: FOOTER ==========
-    var footerBorder = new Border
+    /// <summary>
+    /// Gets the height of a row based on its type. 
+    /// </summary>
+    private double GetRowHeight(PrintableFormItem item)
     {
-        BorderBrush = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
-        BorderThickness = new Thickness(1, 2, 1, 1),
-        Background = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 249, 249, 249)),
-        Padding = new Thickness(10)
-    };
+        return item.Type switch
+        {
+            RowType.Level2Header => Level2HeaderHeight,
+            RowType.Level3Header_A => Level3HeaderHeight,
+            RowType.Level3Header_B => Level3HeaderHeight,
+            RowType.Level3Header_C => Level3HeaderHeight,
+            RowType. File => FileRowHeight,
+            RowType.Blank => BlankRowHeight,
+            _ => FileRowHeight
+        };
+    }
 
-    var footerGrid = new Grid();
-    footerGrid. ColumnDefinitions. Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-    footerGrid. ColumnDefinitions. Add(new ColumnDefinition { Width = GridLength.Auto });
-
-    var generatedText = new TextBlock
+    /// <summary>
+    /// Checks if a row is a Level 3 header type.
+    /// </summary>
+    private bool IsLevel3Header(RowType type)
     {
-        Text = "Generated by AIM Inventory Management",
-        FontSize = 10,
-        Foreground = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows.UI.Color. FromArgb(255, 102, 102, 102))
-    };
-    Grid.SetColumn(generatedText, 0);
-    footerGrid.Children. Add(generatedText);
+        return type == RowType.Level3Header_A ||
+               type == RowType. Level3Header_B ||
+               type == RowType.Level3Header_C;
+    }
 
-    var pageNumberText = new TextBlock
+    /// <summary>
+    /// Calculates the height needed for a header plus minimum following rows.
+    /// </summary>
+    private double GetHeaderWithMinContentHeight(PrintableFormItem header, List<PrintableFormItem> allRows, int headerIndex)
     {
-        Text = $"Page {page.PageNumber} of {page.TotalPages}",
-        FontSize = 10,
-        Foreground = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows.UI.Color. FromArgb(255, 102, 102, 102))
-    };
-    Grid.SetColumn(pageNumberText, 1);
-    footerGrid.Children. Add(pageNumberText);
+        double height = GetRowHeight(header);
+        int minRows = header.Type == RowType.Level2Header ?  MinRowsWithLevel2Header : MinRowsWithLevel3Header;
+        int rowsAdded = 0;
 
-    footerBorder.Child = footerGrid;
-    Grid.SetRow(footerBorder, 3);
-    pageGrid.Children.Add(footerBorder);
+        for (int i = headerIndex + 1; i < allRows. Count && rowsAdded < minRows; i++)
+        {
+            var row = allRows[i];
+            if (row.Type == RowType.Level2Header || IsLevel3Header(row.Type))
+            {
+                break; // Hit another header
+            }
+            height += GetRowHeight(row);
+            rowsAdded++;
+        }
 
-    outerGrid.Children.Add(pageGrid);
+        Debug.WriteLine($"Header '{header.Content}' needs {height}px for header + {rowsAdded} min rows");
+        return height;
+    }
 
-    // COMMENT OUT the Measure/Arrange to see natural content size
-    // outerGrid.Measure(new Windows.Foundation. Size(pageWidth, pageHeight));
-    // outerGrid. Arrange(new Windows.Foundation.Rect(0, 0, pageWidth, pageHeight));
+    /// <summary>
+    /// Paginates a flat list of form items into properly sized pages.
+    /// </summary>
+    public List<PrintablePage> PaginateContent(string pageHeader, List<PrintableFormItem> allRows)
+    {
+        Debug.WriteLine($"=== PaginateContent START - {allRows.Count} total rows ===");
+        
+        var pages = new List<PrintablePage>();
+        var currentPageRows = new List<PrintableFormItem>();
+        double currentPageUsedHeight = 0;
+        string currentLevel2Header = string.Empty;
+        double availableHeight = GetAvailableContentHeight(false);
+        bool isFirstPageForLevel2 = true;
+        int pageNum = 1;
 
-    return outerGrid;
+        for (int i = 0; i < allRows.Count; i++)
+        {
+            var row = allRows[i];
+            double rowHeight = GetRowHeight(row);
+
+            bool isLevel2 = row.Type == RowType.Level2Header;
+            bool isLevel3 = IsLevel3Header(row.Type);
+
+            if (isLevel2)
+            {
+                // Starting a new Level 2 section
+                if (currentPageRows.Count > 0)
+                {
+                    Debug.WriteLine($"--- Finishing page {pageNum} with {currentPageRows.Count} rows (used {currentPageUsedHeight}px of {availableHeight}px) ---");
+                    FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
+                    pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, ! isFirstPageForLevel2));
+                    pageNum++;
+                    currentPageRows = new List<PrintableFormItem>();
+                    currentPageUsedHeight = 0;
+                }
+
+                currentLevel2Header = row.Content;
+                availableHeight = GetAvailableContentHeight(true);
+                isFirstPageForLevel2 = true;
+                Debug.WriteLine($"=== New Level2 Section: '{currentLevel2Header}' - Available height: {availableHeight}px ===");
+                continue;
+            }
+
+            if (isLevel3)
+            {
+                double headerWithContentHeight = GetHeaderWithMinContentHeight(row, allRows, i);
+
+                if (currentPageUsedHeight + headerWithContentHeight > availableHeight && currentPageRows.Count > 0)
+                {
+                    Debug.WriteLine($"--- Level3 header '{row.Content}' won't fit ({currentPageUsedHeight} + {headerWithContentHeight} > {availableHeight}) - starting new page ---");
+                    FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
+                    pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
+                    pageNum++;
+                    isFirstPageForLevel2 = false;
+                    currentPageRows = new List<PrintableFormItem>();
+                    currentPageUsedHeight = 0;
+                }
+            }
+
+            // Check if row fits on current page
+            if (currentPageUsedHeight + rowHeight > availableHeight)
+            {
+                Debug.WriteLine($"--- Row won't fit ({currentPageUsedHeight} + {rowHeight} > {availableHeight}) - starting new page ---");
+                FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
+                pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
+                pageNum++;
+                isFirstPageForLevel2 = false;
+                currentPageRows = new List<PrintableFormItem>();
+                currentPageUsedHeight = 0;
+            }
+
+            // Add row to current page
+            currentPageRows.Add(row);
+            currentPageUsedHeight += rowHeight;
+            Debug.WriteLine($"Added row '{row.Content}' ({row.Type}) - Page height now: {currentPageUsedHeight}px");
+        }
+
+        // Add final page
+        if (currentPageRows.Count > 0)
+        {
+            Debug.WriteLine($"--- Finishing final page {pageNum} with {currentPageRows.Count} rows ---");
+            FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
+            pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
+        }
+
+        // Update page numbers
+        for (int i = 0; i < pages.Count; i++)
+        {
+            pages[i]. PageNumber = i + 1;
+            pages[i].TotalPages = pages.Count;
+        }
+
+        Debug.WriteLine($"=== PaginateContent END - Created {pages.Count} pages ===");
+        return pages;
+    }
+
+    private void FillWithBlankRows(List<PrintableFormItem> rows, double remainingHeight)
+    {
+        int blanksAdded = 0;
+        while (remainingHeight >= BlankRowHeight)
+        {
+            rows.Add(new PrintableFormItem { Type = RowType.Blank, Content = string.Empty });
+            remainingHeight -= BlankRowHeight;
+            blanksAdded++;
+        }
+        Debug.WriteLine($"Filled with {blanksAdded} blank rows");
+    }
+
+    private PrintablePage CreatePage(
+        string pageHeader,
+        string level2Header,
+        List<PrintableFormItem> rows,
+        bool isContinuationPage)
+    {
+        return new PrintablePage
+        {
+            PageHeader = pageHeader,
+            Level2Header = level2Header,
+            Rows = new List<PrintableFormItem>(rows),
+            IsContinuationPage = isContinuationPage
+        };
+    }
 }
