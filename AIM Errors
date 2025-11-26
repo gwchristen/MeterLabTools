@@ -1,472 +1,169 @@
-using AIM.Models;
-using System.Collections.Generic;
-
-namespace AIM.Services;
-
-/// <summary>
-/// Service to intelligently paginate printable form content.
-/// Ensures headers are never orphaned at the bottom of a page.
-/// </summary>
-public class PrintPaginationService : IPrintPaginationService
-{
-    // Page dimensions at 96 DPI (8.5" x 11" letter size)
-    private const double PageHeight = 1056;
-    private const double PageWidth = 816;
-    private const double TopMargin = 40;
-    private const double BottomMargin = 40;
-
-    // Element heights (approximate, in pixels at 96 DPI)
-    private const double HeaderHeight = 70;        // Page header with title, subtitle, initials
-    private const double Level2HeaderHeight = 40;  // Yellow section header
-    private const double Level3HeaderHeight = 28;  // Green/Blue/Red subsection headers  
-    private const double FileRowHeight = 24;       // Standard file row (font size 12)
-    private const double BlankRowHeight = 20;      // Blank row
-    private const double FooterHeight = 45;        // Footer with page number
-
-    // Minimum rows to include with a header (prevents orphaned headers)
-    private const int MinRowsWithLevel2Header = 3;
-    private const int MinRowsWithLevel3Header = 2;
-
-    /// <summary>
-    /// Calculates available content height per page.
-    /// </summary>
-    private double GetAvailableContentHeight(bool hasLevel2Header)
+    private FrameworkElement CreatePrintPageVisual(PrintablePage page)
     {
-        double usedHeight = TopMargin + BottomMargin + HeaderHeight + FooterHeight;
-        if (hasLevel2Header)
+        double pageWidth = 816;
+        double pageHeight = 1056;
+
+        var outerGrid = new Grid
         {
-            usedHeight += Level2HeaderHeight;
-        }
-        return PageHeight - usedHeight;
-    }
-
-    /// <summary>
-    /// Gets the height of a row based on its type. 
-    /// </summary>
-    private double GetRowHeight(PrintableFormItem item)
-    {
-        return item.Type switch
-        {
-            RowType.Level2Header => Level2HeaderHeight,
-            RowType.Level3Header_A => Level3HeaderHeight,
-            RowType.Level3Header_B => Level3HeaderHeight,
-            RowType.Level3Header_C => Level3HeaderHeight,
-            RowType.File => FileRowHeight,
-            RowType.Blank => BlankRowHeight,
-            _ => FileRowHeight
-        };
-    }
-
-    /// <summary>
-    /// Checks if a row is a Level 3 header type.
-    /// </summary>
-    private bool IsLevel3Header(RowType type)
-    {
-        return type == RowType.Level3Header_A ||
-               type == RowType.Level3Header_B ||
-               type == RowType.Level3Header_C;
-    }
-
-    /// <summary>
-    /// Calculates the height needed for a header plus minimum following rows.
-    /// </summary>
-    private double GetHeaderWithMinContentHeight(PrintableFormItem header, List<PrintableFormItem> allRows, int headerIndex)
-    {
-        double height = GetRowHeight(header);
-        int minRows = header.Type == RowType.Level2Header ? MinRowsWithLevel2Header : MinRowsWithLevel3Header;
-        int rowsAdded = 0;
-
-        for (int i = headerIndex + 1; i < allRows.Count && rowsAdded < minRows; i++)
-        {
-            var row = allRows[i];
-            if (row.Type == RowType.Level2Header || IsLevel3Header(row.Type))
-            {
-                break; // Hit another header
-            }
-            height += GetRowHeight(row);
-            rowsAdded++;
-        }
-
-        return height;
-    }
-
-    /// <summary>
-    /// Paginates a flat list of form items into properly sized pages. 
-    /// </summary>
-    public List<PrintablePage> PaginateContent(string pageHeader, List<PrintableFormItem> allRows)
-    {
-        var pages = new List<PrintablePage>();
-        var currentPageRows = new List<PrintableFormItem>();
-        double currentPageUsedHeight = 0;
-        string currentLevel2Header = string.Empty;
-        double availableHeight = GetAvailableContentHeight(false);
-        bool isFirstPageForLevel2 = true;
-
-        for (int i = 0; i < allRows.Count; i++)
-        {
-            var row = allRows[i];
-            double rowHeight = GetRowHeight(row);
-
-            // Check if this is a header that needs special handling
-            bool isLevel2 = row.Type == RowType.Level2Header;
-            bool isLevel3 = IsLevel3Header(row.Type);
-
-            if (isLevel2)
-            {
-                // Starting a new Level 2 section
-                // First, finish the current page if it has content
-                if (currentPageRows. Count > 0)
-                {
-                    FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
-                    pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, ! isFirstPageForLevel2));
-                    currentPageRows = new List<PrintableFormItem>();
-                    currentPageUsedHeight = 0;
-                }
-
-                // Update to new Level 2 header
-                currentLevel2Header = row.Content;
-                availableHeight = GetAvailableContentHeight(true);
-                isFirstPageForLevel2 = true;
-                continue; // Don't add Level2Header to rows - it's displayed in the page header area
-            }
-
-            if (isLevel3)
-            {
-                // Calculate space needed for Level 3 header + minimum content
-                double headerWithContentHeight = GetHeaderWithMinContentHeight(row, allRows, i);
-
-                // Check if header + min content fits on current page
-                if (currentPageUsedHeight + headerWithContentHeight > availableHeight && currentPageRows.Count > 0)
-                {
-                    // Not enough room - finish current page and start new one
-                    FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
-                    pages. Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
-                    isFirstPageForLevel2 = false;
-                    currentPageRows = new List<PrintableFormItem>();
-                    currentPageUsedHeight = 0;
-                }
-            }
-
-            // Check if row fits on current page
-            if (currentPageUsedHeight + rowHeight > availableHeight)
-            {
-                // Fill remaining space with blank rows
-                FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
-
-                // Start new page
-                pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
-                isFirstPageForLevel2 = false;
-                currentPageRows = new List<PrintableFormItem>();
-                currentPageUsedHeight = 0;
-            }
-
-            // Add row to current page
-            currentPageRows.Add(row);
-            currentPageUsedHeight += rowHeight;
-        }
-
-        // Add final page if there's remaining content
-        if (currentPageRows.Count > 0)
-        {
-            FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
-            pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
-        }
-
-        // Update page numbers
-        for (int i = 0; i < pages.Count; i++)
-        {
-            pages[i].PageNumber = i + 1;
-            pages[i].TotalPages = pages. Count;
-        }
-
-        return pages;
-    }
-
-    /// <summary>
-    /// Fills remaining page space with blank rows. 
-    /// </summary>
-    private void FillWithBlankRows(List<PrintableFormItem> rows, double remainingHeight)
-    {
-        while (remainingHeight >= BlankRowHeight)
-        {
-            rows.Add(new PrintableFormItem { Type = RowType.Blank, Content = string.Empty });
-            remainingHeight -= BlankRowHeight;
-        }
-    }
-
-    /// <summary>
-    /// Creates a PrintablePage with the given content. 
-    /// </summary>
-    private PrintablePage CreatePage(
-        string pageHeader,
-        string level2Header,
-        List<PrintableFormItem> rows,
-        bool isContinuationPage)
-    {
-        return new PrintablePage
-        {
-            PageHeader = pageHeader,
-            Level2Header = level2Header,
-            Rows = new List<PrintableFormItem>(rows),
-            IsContinuationPage = isContinuationPage
-        };
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-using AIM.Models;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System. Threading.Tasks;
-
-namespace AIM.Services;
-
-public class DirectoryOperationService
-{
-    private readonly IPrintPaginationService _paginationService;
-
-    public DirectoryOperationService(IPrintPaginationService paginationService)
-    {
-        _paginationService = paginationService;
-    }
-
-    // Parameterless constructor for backward compatibility
-    public DirectoryOperationService() : this(new PrintPaginationService())
-    {
-    }
-
-    public async Task<PrintableForm> GenerateFormDataAsync(string opCoDirectoryPath)
-    {
-        var form = new PrintableForm
-        {
-            Header = "Form Data Generation",
-            SubHeader = "Inventory Summary"
+            Width = pageWidth,
+            Height = pageHeight,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
         };
 
-        // Collect all items first (flat list)
-        var allItems = new List<PrintableFormItem>();
-
-        await Task.Run(() =>
+        var pageGrid = new Grid
         {
-            try
-            {
-                var opCoDirInfo = new DirectoryInfo(opCoDirectoryPath);
-                form.Header = opCoDirInfo. Name;
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+            Margin = new Thickness(40),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
 
-                var level2Dirs = opCoDirInfo. GetDirectories(). OrderBy(d => d.Name);
+        pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 0: Page Header
+        pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 1: Level2 Header
+        pageGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Row 2: Content
+        pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 3: Footer
 
-                if (! level2Dirs. Any())
-                {
-                    allItems.Add(new PrintableFormItem { Content = "Error: No 'Level 2' subdirectories found in the selected folder.", Type = RowType.Level3Header_C });
-                    return;
-                }
-
-                foreach (var level2Dir in level2Dirs)
-                {
-                    allItems.Add(new PrintableFormItem { Content = level2Dir.Name, Type = RowType.Level2Header });
-
-                    var filesInLevel2 = level2Dir.GetFiles(). OrderBy(f => f.Name);
-                    foreach (var file in filesInLevel2)
-                    {
-                        allItems.Add(new PrintableFormItem { Content = Path.GetFileNameWithoutExtension(file.Name), Type = RowType.File });
-                    }
-
-                    var level3Dirs = level2Dir.GetDirectories().OrderBy(d => d.Name);
-                    foreach (var level3Dir in level3Dirs)
-                    {
-                        string dirName = level3Dir.Name;
-                        RowType headerType;
-
-                        if (dirName.Contains("3a", StringComparison. OrdinalIgnoreCase)) headerType = RowType.Level3Header_A;
-                        else if (dirName.Contains("3b", StringComparison.OrdinalIgnoreCase)) headerType = RowType. Level3Header_B;
-                        else if (dirName. Contains("3c", StringComparison. OrdinalIgnoreCase)) headerType = RowType.Level3Header_C;
-                        else headerType = RowType.Level3Header_A;
-
-                        allItems.Add(new PrintableFormItem { Content = dirName, Type = headerType });
-
-                        if (headerType == RowType.Level3Header_C)
-                        {
-                            foreach (var file in level3Dir.GetFiles(). OrderBy(f => f.Name))
-                            {
-                                try
-                                {
-                                    var lines = File.ReadLines(file. FullName). Where(line => !string.IsNullOrWhiteSpace(line));
-                                    foreach (var line in lines)
-                                    {
-                                        allItems.Add(new PrintableFormItem { Content = line, Type = RowType. File });
-                                    }
-                                }
-                                catch (IOException ex)
-                                {
-                                    allItems.Add(new PrintableFormItem { Content = $"IO Error reading {file.Name}: {ex.Message}", Type = RowType. File });
-                                }
-                            }
-                        }
-                        else
-                        {
-                            foreach (var file in level3Dir.GetFiles(). OrderBy(f => f.Name))
-                            {
-                                allItems.Add(new PrintableFormItem { Content = Path.GetFileNameWithoutExtension(file.Name), Type = RowType.File });
-                            }
-                        }
-                    }
-
-                    // Add a blank row after each Level 2 section
-                    allItems.Add(new PrintableFormItem { Type = RowType. Blank });
-                }
-            }
-            catch (Exception ex)
-            {
-                allItems.Clear();
-                form.Header = "An Error Occurred";
-                allItems.Add(new PrintableFormItem { Content = "A critical error stopped form generation.", Type = RowType.Level2Header });
-                allItems.Add(new PrintableFormItem { Content = ex.Message, Type = RowType.File });
-                allItems.Add(new PrintableFormItem { Type = RowType. Blank });
-                allItems.Add(new PrintableFormItem { Content = ex. StackTrace ??  "No stack trace available", Type = RowType.File });
-            }
-        });
-
-        // Now paginate the content intelligently
-        form.Pages = _paginationService.PaginateContent(form.Header, allItems);
-
-        return form;
-    }
-
-    public Task CopyDirectoryStructureAsync(string sourceDir, string destinationDir, string newDirName)
-    {
-        return Task.Run(() =>
+        // ========== ROW 0: PAGE HEADER with Initials ==========
+        var headerBorder = new Border
         {
-            var newDestination = Path.Combine(destinationDir, newDirName);
-            if (Directory.Exists(newDestination))
-            {
-                throw new IOException($"A directory named '{newDirName}' already exists in the destination.");
-            }
-            Directory.CreateDirectory(newDestination);
-            foreach (var dirPath in Directory.GetDirectories(sourceDir, "*", SearchOption. AllDirectories))
-            {
-                Directory.CreateDirectory(dirPath.Replace(sourceDir, newDestination));
-            }
-        });
-    }
+            Padding = new Thickness(12),
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+            BorderThickness = new Thickness(0, 0, 0, 2)
+        };
 
-    public Task<Dictionary<string, int>> RenameFilesSequentiallyAsync(string rootDirectoryPath)
-    {
-        return Task.Run(() =>
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Left side: Title and subtitle
+        var headerStackPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
+
+        // Determine header color based on content (matching HeaderColorConverter logic)
+        var headerColor = GetHeaderColor(page.PageHeader);
+
+        var headerText = new TextBlock
         {
-            var rootDir = new DirectoryInfo(rootDirectoryPath);
-            if (!rootDir. Exists)
-            {
-                throw new DirectoryNotFoundException("The selected root directory does not exist.");
-            }
-            var renamedFilesCount = new Dictionary<string, int>();
-            foreach (var opCoDir in rootDir.GetDirectories())
-            {
-                var counter = 1;
-                var allFiles = opCoDir.GetFiles("*", SearchOption. AllDirectories). OrderBy(f => f. FullName). ToList();
-                foreach (var file in allFiles)
-                {
-                    var newFileName = $"{opCoDir. Name}_{counter:D4}{file.Extension}";
-                    var newFilePath = Path. Combine(file.DirectoryName!, newFileName);
-                    if (File.Exists(newFilePath) && !string. Equals(file. FullName, newFilePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        newFileName = $"{opCoDir.Name}_{counter:D4}_{Guid.NewGuid(). ToString().Substring(0, 4)}{file.Extension}";
-                        newFilePath = Path.Combine(file.DirectoryName!, newFileName);
-                    }
-                    file.MoveTo(newFilePath);
-                    counter++;
-                }
-                renamedFilesCount[opCoDir.Name] = counter - 1;
-            }
-            return renamedFilesCount;
-        });
-    }
+            Text = page.PageHeader ?? _viewModel?.FormData?.Header ?? string.Empty,
+            FontSize = 22,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(headerColor)
+        };
+        headerStackPanel.Children.Add(headerText);
 
-    public Task<List<OpCoStatItem>> GetDirectoryStatsAsync(string rootDirectoryPath)
-    {
-        return Task. Run(() =>
+        var subtitleText = new TextBlock
         {
-            var rootDir = new DirectoryInfo(rootDirectoryPath);
-            if (!rootDir. Exists)
-            {
-                throw new DirectoryNotFoundException("The selected root directory does not exist.");
-            }
-            var stats = new List<OpCoStatItem>();
-            foreach (var opCoDir in rootDir.GetDirectories())
-            {
-                var files = Directory.GetFiles(opCoDir.FullName, "*.*", SearchOption.AllDirectories);
-                long deviceCount = 0;
-                foreach (var file in files)
-                {
-                    try
-                    {
-                        deviceCount += File.ReadLines(file).Count(line => !string. IsNullOrWhiteSpace(line));
-                    }
-                    catch (IOException) { }
-                }
-                stats. Add(new OpCoStatItem { OpCoName = opCoDir. Name, FileCount = files.Length, DeviceCount = deviceCount });
-            }
-            return stats;
-        });
-    }
+            Text = "Inventory Summary",
+            FontSize = 12,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102))
+        };
+        headerStackPanel.Children.Add(subtitleText);
 
-    public Task<FileAnomalyReport> FindFileAnomaliesAsync(string rootDirectoryPath)
-    {
-        return Task.Run(() =>
+        Grid.SetColumn(headerStackPanel, 0);
+        headerGrid.Children.Add(headerStackPanel);
+
+        // Right side: Initials
+        var initialsText = new TextBlock
         {
-            var report = new FileAnomalyReport();
-            var rootDir = new DirectoryInfo(rootDirectoryPath);
-            if (!rootDir.Exists)
+            Text = "Initials: __________",
+            FontSize = 11,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        Grid.SetColumn(initialsText, 1);
+        headerGrid.Children.Add(initialsText);
+
+        headerBorder.Child = headerGrid;
+        Grid.SetRow(headerBorder, 0);
+        pageGrid.Children.Add(headerBorder);
+
+        // ========== ROW 1: LEVEL 2 HEADER ==========
+        if (!string.IsNullOrEmpty(page.Level2Header))
+        {
+            var level2Border = new Border
             {
-                throw new DirectoryNotFoundException("Root directory not found.");
-            }
-            string ohioPath = Path. Combine(rootDirectoryPath, "Ohio");
-            string imPath = Path. Combine(rootDirectoryPath, "I&M");
-            string[] allFiles = Directory.GetFiles(rootDirectoryPath, "*", SearchOption.AllDirectories);
-            var imTerms = new[] { "I&M", "I+M", "IM" };
-            foreach (string file in allFiles)
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 243, 205)), // #FFF3CD Yellow
+                BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+                BorderThickness = new Thickness(1, 1, 1, 0),
+                Padding = new Thickness(8)
+            };
+
+            var level2Text = new TextBlock
             {
-                string fileName = Path.GetFileName(file);
-                bool isOhFile = fileName.Contains("OH", StringComparison. OrdinalIgnoreCase);
-                bool isImFile = imTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase));
-                if (isOhFile && ! file.StartsWith(ohioPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    report.MisplacedOhFiles.Add(file);
-                }
-                if (isImFile && !file.StartsWith(imPath, StringComparison. OrdinalIgnoreCase))
-                {
-                    report. MisplacedImFiles.Add(file);
-                }
-                if (!isOhFile && !isImFile)
-                {
-                    report. UnidentifiedFiles. Add(file);
-                }
+                Text = page.Level2Header + (page.IsContinuationPage ? " (Continued)" : ""),
+                FontSize = 14,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0))
+            };
+            level2Border.Child = level2Text;
+
+            Grid.SetRow(level2Border, 1);
+            pageGrid.Children.Add(level2Border);
+        }
+
+        // ========== ROW 2: CONTENT ROWS ==========
+        var contentBorder = new Border
+        {
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+            BorderThickness = new Thickness(1),            
+        };
+
+        var contentPanel = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+
+        if (page.Rows != null)
+        {
+            foreach (var row in page.Rows)
+            {
+                var rowElement = CreatePrintRowVisual(row);
+                contentPanel.Children.Add(rowElement);
             }
-            return report;
-        });
+        }
+
+        contentBorder.Child = contentPanel;
+        Grid.SetRow(contentBorder, 2);
+        pageGrid.Children.Add(contentBorder);
+
+        // ========== ROW 3: FOOTER ==========
+        var footerBorder = new Border
+        {
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+            BorderThickness = new Thickness(1, 2, 1, 1),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 249, 249, 249)), // #F9F9F9
+            Padding = new Thickness(10)
+        };
+
+        var footerGrid = new Grid();
+        footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var generatedText = new TextBlock
+        {
+            Text = "Generated by AIM Inventory Management",
+            FontSize = 10,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102))
+        };
+        Grid.SetColumn(generatedText, 0);
+        footerGrid.Children.Add(generatedText);
+
+        var pageNumberText = new TextBlock
+        {
+            Text = $"Page {page.PageNumber} of {page.TotalPages}",
+            FontSize = 10,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102))
+        };
+        Grid.SetColumn(pageNumberText, 1);
+        footerGrid.Children.Add(pageNumberText);
+
+        footerBorder.Child = footerGrid;
+        Grid.SetRow(footerBorder, 3);
+        pageGrid.Children.Add(footerBorder);
+
+        outerGrid.Children.Add(pageGrid);
+
+        outerGrid.Measure(new Windows.Foundation.Size(pageWidth, pageHeight));
+        outerGrid.Arrange(new Windows.Foundation.Rect(0, 0, pageWidth, pageHeight));
+
+        return outerGrid;
     }
-}
-
-
-
-
-
-
-
-// Add this to your service registration section in App.xaml. cs
-services.AddSingleton<IPrintPaginationService, PrintPaginationService>();
-services.AddTransient<DirectoryOperationService>();
