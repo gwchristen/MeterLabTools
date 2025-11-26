@@ -20,3 +20,75 @@ WinRT information: This element does not have a XamlRoot. Either set the XamlRoo
 The parameter is incorrect.
 
 This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+
+
+
+protected override void OnNavigatedTo(NavigationEventArgs e)
+{
+    base.OnNavigatedTo(e);
+
+    if (e.Parameter is PrintableForm form)
+    {
+        _viewModel?. LoadFormData(form);
+
+        // DEBUG: Show what we received after page is fully loaded
+        this.Loaded += async (s, args) =>
+        {
+            await Task.Delay(500); // Wait for everything to settle
+            
+            try
+            {
+                var debugInfo = $"Received PrintableForm:\n" +
+                                $"- Header: {form. Header}\n" +
+                                $"- Pages count: {form.Pages?. Count ?? 0}\n" +
+                                $"- PaginationLog count: {Services.PrintPaginationService.PaginationLog.Count}";
+
+                if (form.Pages?.Count > 0)
+                {
+                    var firstPage = form. Pages[0];
+                    debugInfo += $"\n\nFirst Page:\n" +
+                                 $"- Level2Header: {firstPage.Level2Header}\n" +
+                                 $"- Rows count: {firstPage.Rows?.Count ?? 0}";
+
+                    if (firstPage. Rows?.Count > 0)
+                    {
+                        debugInfo += $"\n- First 5 rows:";
+                        foreach (var row in firstPage. Rows.Take(5))
+                        {
+                            var content = row.Content ??  "(null)";
+                            if (content.Length > 30) content = content.Substring(0, 30) + "...";
+                            debugInfo += $"\n  [{row.Type}] {content}";
+                        }
+                    }
+                }
+
+                if (this.XamlRoot != null)
+                {
+                    var dialog = new ContentDialog
+                    {
+                        Title = "DEBUG: Form Data",
+                        Content = new ScrollViewer
+                        {
+                            Content = new TextBlock
+                            {
+                                Text = debugInfo,
+                                TextWrapping = TextWrapping.Wrap,
+                                IsTextSelectionEnabled = true
+                            },
+                            MaxHeight = 400
+                        },
+                        CloseButtonText = "OK",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await dialog.ShowAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Debug dialog error: {ex.Message}");
+            }
+        };
+    }
+
+    RegisterForPrinting();
+}
