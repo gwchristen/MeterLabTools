@@ -11,3 +11,12 @@ This element does not have a XamlRoot. Either set the XamlRoot property or add t
    at AIM.Views.PrintableFormPage.<>c__DisplayClass6_0.<<OnNavigatedTo>b__0>d.MoveNext() in C:\Users\s245451\Documents\source\AIM\Views\PrintableFormPage.xaml.cs:line 83
 
 
+=== RegisterForPrinting Completed Successfully ===
+[MainWindow] NavigationChanged event: PrintableFormPage
+Exception thrown: 'System.ArgumentException' in WinRT.Runtime.dll
+WinRT information: This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+An exception of type 'System.ArgumentException' occurred in WinRT.Runtime.dll but was not handled in user code
+WinRT information: This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+The parameter is incorrect.
+
+This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
