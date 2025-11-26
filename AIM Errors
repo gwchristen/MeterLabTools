@@ -1,7 +1,7 @@
 using AIM.Models;
 using System;
-using System. Collections.Generic;
-using System. Diagnostics;
+using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace AIM.Services;
 
@@ -13,17 +13,15 @@ public class PrintPaginationService : IPrintPaginationService
     private const double TopMargin = 40;
     private const double BottomMargin = 40;
 
-    // Element heights - ADJUST THESE to match your actual rendered sizes
-    private const double HeaderHeight = 60;
-    private const double Level2HeaderHeight = 35;
-    private const double Level3HeaderHeight = 24;
-    private const double FileRowHeight = 20;
-    private const double BlankRowHeight = 20;
-    private const double FooterHeight = 40;
-
-    // Minimum rows to include with a header
-    private const int MinRowsWithLevel2Header = 3;
-    private const int MinRowsWithLevel3Header = 8;
+    // Element heights - These need to match ACTUAL rendered pixel heights
+    // Based on your screenshots, rows appear to be about 18-20px each
+    // And you're fitting ~40+ rows on a page
+    private const double HeaderHeight = 55;        // Page header (Ohio, Inventory Summary, Initials)
+    private const double Level2HeaderHeight = 30;  // Yellow section header (Pods)
+    private const double Level3HeaderHeight = 20;  // Green/Blue/Red headers (#1, #2, #3, etc.)
+    private const double FileRowHeight = 18;       // File rows
+    private const double BlankRowHeight = 18;      // Blank rows
+    private const double FooterHeight = 35;        // Footer
 
     public static List<string> PaginationLog { get; } = new List<string>();
 
@@ -40,16 +38,18 @@ public class PrintPaginationService : IPrintPaginationService
         {
             usedHeight += Level2HeaderHeight;
         }
-        return PageHeight - usedHeight;
+        double available = PageHeight - usedHeight;
+        Log($"Available height: {available}px (hasLevel2: {hasLevel2Header})");
+        return available;
     }
 
     private double GetRowHeight(PrintableFormItem item)
     {
-        return item. Type switch
+        return item.Type switch
         {
-            RowType. Level2Header => Level2HeaderHeight,
+            RowType.Level2Header => Level2HeaderHeight,
             RowType.Level3Header_A => Level3HeaderHeight,
-            RowType. Level3Header_B => Level3HeaderHeight,
+            RowType.Level3Header_B => Level3HeaderHeight,
             RowType.Level3Header_C => Level3HeaderHeight,
             RowType.File => FileRowHeight,
             RowType.Blank => BlankRowHeight,
@@ -60,7 +60,7 @@ public class PrintPaginationService : IPrintPaginationService
     private bool IsLevel3Header(RowType type)
     {
         return type == RowType.Level3Header_A ||
-               type == RowType.Level3Header_B ||
+               type == RowType. Level3Header_B ||
                type == RowType.Level3Header_C;
     }
 
@@ -73,24 +73,31 @@ public class PrintPaginationService : IPrintPaginationService
         section.Add(allRows[headerIndex]); // Add the header
 
         int i = headerIndex + 1;
-        while (i < allRows. Count)
+        while (i < allRows.Count)
         {
             var row = allRows[i];
-            // Stop if we hit another header
+            // Stop if we hit another header (Level2 or Level3)
             if (row.Type == RowType.Level2Header || IsLevel3Header(row.Type))
             {
                 break;
+            }
+            // Skip blank rows at the end of sections - they'll be added during fill
+            if (row.Type == RowType.Blank)
+            {
+                i++;
+                continue;
             }
             section.Add(row);
             i++;
         }
 
         nextIndex = i;
+        Log($"Collected Level3 section '{allRows[headerIndex].Content}': {section.Count} items (header + {section.Count - 1} content rows)");
         return section;
     }
 
     /// <summary>
-    /// Calculates total height of a list of rows.
+    /// Calculates total height of a list of rows. 
     /// </summary>
     private double CalculateSectionHeight(List<PrintableFormItem> rows)
     {
@@ -118,9 +125,7 @@ public class PrintPaginationService : IPrintPaginationService
         while (i < allRows.Count)
         {
             var row = allRows[i];
-            double rowHeight = GetRowHeight(row);
-
-            bool isLevel2 = row.Type == RowType. Level2Header;
+            bool isLevel2 = row.Type == RowType.Level2Header;
             bool isLevel3 = IsLevel3Header(row.Type);
 
             // ===== LEVEL 2 HEADER =====
@@ -131,7 +136,7 @@ public class PrintPaginationService : IPrintPaginationService
                 {
                     Log($">> NEW PAGE (Level2 '{row.Content}') - finishing page with {currentPageRows.Count} rows");
                     FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
-                    pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
+                    pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, ! isFirstPageForLevel2));
                     currentPageRows = new List<PrintableFormItem>();
                     currentPageUsedHeight = 0;
                 }
@@ -150,35 +155,37 @@ public class PrintPaginationService : IPrintPaginationService
                 int nextIndex;
                 var section = CollectLevel3Section(allRows, i, out nextIndex);
                 double sectionHeight = CalculateSectionHeight(section);
+                double remainingOnCurrentPage = availableHeight - currentPageUsedHeight;
 
-                Log($"Level3 section '{row.Content}': {section.Count} rows, {sectionHeight}px total");
+                Log($"Level3 '{row.Content}': {section.Count} rows = {sectionHeight}px, remaining on page: {remainingOnCurrentPage}px");
 
-                // Check if entire section fits on current page
-                if (currentPageUsedHeight + sectionHeight <= availableHeight)
+                // Decision: Does the ENTIRE section fit on current page? 
+                if (sectionHeight <= remainingOnCurrentPage)
                 {
-                    // Entire section fits - add it all
-                    Log($"  Section fits on current page ({currentPageUsedHeight} + {sectionHeight} <= {availableHeight})");
+                    // YES - Add entire section to current page
+                    Log($"  -> Fits on current page");
                     foreach (var sectionRow in section)
                     {
                         currentPageRows. Add(sectionRow);
                         currentPageUsedHeight += GetRowHeight(sectionRow);
                     }
                 }
+                // Does the section fit on a FRESH page?
                 else if (sectionHeight <= availableHeight)
                 {
-                    // Section fits on a fresh page - start new page first
-                    Log($"  Section needs new page (fits on empty page: {sectionHeight} <= {availableHeight})");
+                    // YES - Start new page, then add entire section
+                    Log($"  -> Moving to new page (section fits on fresh page)");
+                    
                     if (currentPageRows.Count > 0)
                     {
                         FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
                         pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
                         isFirstPageForLevel2 = false;
                     }
-                    
+
                     currentPageRows = new List<PrintableFormItem>();
                     currentPageUsedHeight = 0;
 
-                    // Add entire section to new page
                     foreach (var sectionRow in section)
                     {
                         currentPageRows.Add(sectionRow);
@@ -187,27 +194,26 @@ public class PrintPaginationService : IPrintPaginationService
                 }
                 else
                 {
-                    // Section is too large for one page - need to split it
-                    Log($"  Section too large for one page ({sectionHeight} > {availableHeight}) - splitting");
-                    
-                    // Start new page if current has content
+                    // NO - Section is too large even for a fresh page, must split
+                    Log($"  -> Section too large ({sectionHeight}px > {availableHeight}px), must split across pages");
+
+                    // Start fresh page for this large section
                     if (currentPageRows.Count > 0)
                     {
                         FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
-                        pages. Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
+                        pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
                         isFirstPageForLevel2 = false;
                         currentPageRows = new List<PrintableFormItem>();
                         currentPageUsedHeight = 0;
                     }
 
-                    // Add rows from section, breaking pages as needed
+                    // Add rows one by one, creating new pages as needed
                     foreach (var sectionRow in section)
                     {
                         double sectionRowHeight = GetRowHeight(sectionRow);
 
                         if (currentPageUsedHeight + sectionRowHeight > availableHeight)
                         {
-                            // Start new page
                             FillWithBlankRows(currentPageRows, availableHeight - currentPageUsedHeight);
                             pages.Add(CreatePage(pageHeader, currentLevel2Header, currentPageRows, !isFirstPageForLevel2));
                             isFirstPageForLevel2 = false;
@@ -220,11 +226,19 @@ public class PrintPaginationService : IPrintPaginationService
                     }
                 }
 
-                i = nextIndex; // Skip past the section we just processed
+                i = nextIndex;
                 continue;
             }
 
-            // ===== REGULAR ROW (File or Blank not part of Level3 section) =====
+            // ===== SKIP standalone BLANK rows (they're added during fill) =====
+            if (row.Type == RowType.Blank)
+            {
+                i++;
+                continue;
+            }
+
+            // ===== REGULAR FILE ROW (not part of Level3 section) =====
+            double rowHeight = GetRowHeight(row);
             if (currentPageUsedHeight + rowHeight > availableHeight)
             {
                 Log($">> NEW PAGE (row won't fit)");
@@ -251,7 +265,7 @@ public class PrintPaginationService : IPrintPaginationService
         // Update page numbers
         for (int p = 0; p < pages. Count; p++)
         {
-            pages[p]. PageNumber = p + 1;
+            pages[p].PageNumber = p + 1;
             pages[p].TotalPages = pages.Count;
         }
 
@@ -261,11 +275,14 @@ public class PrintPaginationService : IPrintPaginationService
 
     private void FillWithBlankRows(List<PrintableFormItem> rows, double remainingHeight)
     {
+        int count = 0;
         while (remainingHeight >= BlankRowHeight)
         {
-            rows.Add(new PrintableFormItem { Type = RowType. Blank, Content = string.Empty });
+            rows.Add(new PrintableFormItem { Type = RowType.Blank, Content = string.Empty });
             remainingHeight -= BlankRowHeight;
+            count++;
         }
+        Log($"  Filled {count} blank rows");
     }
 
     private PrintablePage CreatePage(
