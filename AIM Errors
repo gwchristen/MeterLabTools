@@ -7,109 +7,199 @@ private FrameworkElement CreatePrintPageVisual(PrintablePage page)
     {
         Width = pageWidth,
         Height = pageHeight,
-        Background = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows. UI.Color.FromArgb(255, 255, 255, 255))
+        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
     };
 
     var pageGrid = new Grid
     {
-        Background = new Microsoft. UI.Xaml.Media. SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 255, 255, 255)),
         Margin = new Thickness(40),
         HorizontalAlignment = HorizontalAlignment.Stretch,
-        VerticalAlignment = VerticalAlignment.Stretch
+        VerticalAlignment = VerticalAlignment. Stretch
     };
 
-    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 0: Page Header
+    pageGrid. RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 0: Page Header
     pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength. Auto });      // Row 1: Level2 Header
-    pageGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType. Star) }); // Row 2: Content
-    pageGrid. RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 3: Footer
+    pageGrid. RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Row 2: Content
+    pageGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });      // Row 3: Footer
 
-    // ROW 0: PAGE HEADER (use page-specific header)
+    // ========== ROW 0: PAGE HEADER with Initials ==========
+    var headerBorder = new Border
+    {
+        Padding = new Thickness(12),
+        BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+        BorderThickness = new Thickness(0, 0, 0, 2)
+    };
+
+    var headerGrid = new Grid();
+    headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType. Star) });
+    headerGrid. ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+    // Left side: Title and subtitle
+    var headerStackPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
+    
+    // Determine header color based on content (matching HeaderColorConverter logic)
+    var headerColor = GetHeaderColor(page.PageHeader);
+    
     var headerText = new TextBlock
     {
-        Text = page.PageHeader ??  _viewModel?.FormData?.Header ??  string.Empty,
-        FontSize = 18,
+        Text = page.PageHeader ??  _viewModel?. FormData?.Header ?? string.Empty,
+        FontSize = 22,
         FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-        Margin = new Thickness(0, 0, 0, 2),
-        Foreground = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color. FromArgb(255, 0, 0, 0)),
-        HorizontalAlignment = HorizontalAlignment.Left
+        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(headerColor)
     };
-    Grid.SetRow(headerText, 0);
-    pageGrid.Children.Add(headerText);
+    headerStackPanel.Children.Add(headerText);
 
-    // ROW 1: LEVEL 2 HEADER (section header)
+    var subtitleText = new TextBlock
+    {
+        Text = "Inventory Summary",
+        FontSize = 12,
+        Foreground = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102))
+    };
+    headerStackPanel. Children.Add(subtitleText);
+
+    Grid.SetColumn(headerStackPanel, 0);
+    headerGrid.Children.Add(headerStackPanel);
+
+    // Right side: Initials
+    var initialsText = new TextBlock
+    {
+        Text = "Initials: __________",
+        FontSize = 11,
+        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+        VerticalAlignment = VerticalAlignment.Top
+    };
+    Grid.SetColumn(initialsText, 1);
+    headerGrid. Children.Add(initialsText);
+
+    headerBorder.Child = headerGrid;
+    Grid.SetRow(headerBorder, 0);
+    pageGrid.Children.Add(headerBorder);
+
+    // ========== ROW 1: LEVEL 2 HEADER ==========
     if (! string.IsNullOrEmpty(page.Level2Header))
     {
-        var level2Grid = new Grid
+        var level2Border = new Border
         {
-            Background = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 243, 205)), // Yellow background
-            Margin = new Thickness(0, 0, 0, 5),
-            Padding = new Thickness(5, 3, 5, 3)
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 255, 243, 205)), // #FFF3CD Yellow
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+            BorderThickness = new Thickness(1, 1, 1, 0),
+            Padding = new Thickness(8)
         };
-        
+
         var level2Text = new TextBlock
         {
             Text = page.Level2Header + (page.IsContinuationPage ? " (Continued)" : ""),
             FontSize = 14,
-            FontWeight = Microsoft. UI.Text.FontWeights. SemiBold,
-            Foreground = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0))
+            FontWeight = Microsoft.UI.Text. FontWeights.Bold,
+            Foreground = new Microsoft.UI.Xaml. Media.SolidColorBrush(Windows.UI.Color. FromArgb(255, 0, 0, 0))
         };
-        level2Grid.Children.Add(level2Text);
-        
-        Grid.SetRow(level2Grid, 1);
-        pageGrid. Children.Add(level2Grid);
+        level2Border. Child = level2Text;
+
+        Grid.SetRow(level2Border, 1);
+        pageGrid.Children.Add(level2Border);
     }
 
-    // ROW 2: CONTENT ROWS
+    // ========== ROW 2: CONTENT ROWS ==========
+    var contentBorder = new Border
+    {
+        BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+        BorderThickness = new Thickness(1),
+        VerticalAlignment = VerticalAlignment.Top  // Prevent stretching that causes cutoff
+    };
+
     var contentPanel = new StackPanel
     {
         HorizontalAlignment = HorizontalAlignment.Stretch
     };
-    
+
     if (page. Rows != null)
     {
-        foreach (var row in page. Rows)
+        foreach (var row in page.Rows)
         {
             var rowElement = CreatePrintRowVisual(row);
             contentPanel.Children.Add(rowElement);
         }
     }
-    Grid.SetRow(contentPanel, 2);
-    pageGrid.Children.Add(contentPanel);
 
-    // ROW 3: FOOTER with page number
+    contentBorder.Child = contentPanel;
+    Grid. SetRow(contentBorder, 2);
+    pageGrid.Children.Add(contentBorder);
+
+    // ========== ROW 3: FOOTER ==========
+    var footerBorder = new Border
+    {
+        BorderBrush = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+        BorderThickness = new Thickness(1, 2, 1, 1),
+        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI. Color.FromArgb(255, 249, 249, 249)), // #F9F9F9
+        Padding = new Thickness(10)
+    };
+
     var footerGrid = new Grid();
-    footerGrid. ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType. Star) });
-    footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+    footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+    footerGrid. ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
     var generatedText = new TextBlock
     {
-        Text = $"Generated: {_viewModel?.FormData?.Date} by {_viewModel?.FormData?.GeneratedBy}",
-        FontSize = 9,
-        Margin = new Thickness(0, 10, 0, 0),
-        Foreground = new Microsoft. UI.Xaml.Media. SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128)),
-        HorizontalAlignment = HorizontalAlignment.Left
+        Text = "Generated by AIM Inventory Management",
+        FontSize = 10,
+        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102))
     };
     Grid.SetColumn(generatedText, 0);
-    footerGrid.Children. Add(generatedText);
+    footerGrid.Children.Add(generatedText);
 
     var pageNumberText = new TextBlock
     {
-        Text = $"Page {page.PageNumber} of {page. TotalPages}",
-        FontSize = 9,
-        Margin = new Thickness(0, 10, 0, 0),
-        Foreground = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows. UI.Color.FromArgb(255, 128, 128, 128)),
-        HorizontalAlignment = HorizontalAlignment.Right
+        Text = $"Page {page.PageNumber} of {page.TotalPages}",
+        FontSize = 10,
+        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 102, 102, 102))
     };
     Grid.SetColumn(pageNumberText, 1);
     footerGrid.Children.Add(pageNumberText);
 
-    Grid.SetRow(footerGrid, 3);
-    pageGrid. Children.Add(footerGrid);
+    footerBorder.Child = footerGrid;
+    Grid.SetRow(footerBorder, 3);
+    pageGrid.Children. Add(footerBorder);
 
-    outerGrid.Children. Add(pageGrid);
+    outerGrid.Children.Add(pageGrid);
 
-    outerGrid.Measure(new Windows.Foundation.Size(pageWidth, pageHeight));
-    outerGrid.Arrange(new Windows.Foundation.Rect(0, 0, pageWidth, pageHeight));
+    outerGrid. Measure(new Windows.Foundation.Size(pageWidth, pageHeight));
+    outerGrid. Arrange(new Windows.Foundation.Rect(0, 0, pageWidth, pageHeight));
 
     return outerGrid;
 }
+
+/// <summary>
+/// Gets the header color based on the header text (matches HeaderColorConverter logic). 
+/// </summary>
+private Windows.UI.Color GetHeaderColor(string?  header)
+{
+    if (string.IsNullOrEmpty(header))
+        return Windows.UI.Color.FromArgb(255, 0, 0, 0); // Black default
+
+    // Add your color logic here based on header content
+    // Example: different colors for different regions/divisions
+    var headerLower = header.ToLowerInvariant();
+    
+    if (headerLower.Contains("ohio"))
+        return Windows.UI. Color.FromArgb(255, 0, 100, 0); // Dark Green
+    else if (headerLower.Contains("i&m") || headerLower.Contains("i & m"))
+        return Windows.UI.Color.FromArgb(255, 0, 0, 139); // Dark Blue
+    // Add more conditions as needed based on your HeaderColorConverter
+
+    return Windows.UI.Color. FromArgb(255, 0, 0, 0); // Black default
+}
+
+
+
+
+// In CreatePrintRowVisual method, change the contentText FontSize from 11 to 12:
+var contentText = new TextBlock
+{
+    Text = item.Content ??  string.Empty,
+    FontSize = 12,  // Changed from 11 to 12
+    Margin = new Thickness(4, 2, 4, 2),
+    VerticalAlignment = VerticalAlignment.Center,
+    Foreground = new Microsoft.UI. Xaml.Media.SolidColorBrush(Windows. UI.Color.FromArgb(255, 0, 0, 0)),
+    TextWrapping = TextWrapping. Wrap
+};
