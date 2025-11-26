@@ -1,94 +1,198 @@
-System.ArgumentException
-  HResult=0x80070057
-  Message=The parameter is incorrect.
+using AIM.Models;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System. Linq;
+using System.Threading. Tasks;
 
-This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
-  Source=WinRT.Runtime
-  StackTrace:
-   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
-   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
-   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
-   at AIM.Views.PrintableFormPage.<>c__DisplayClass6_0.<<OnNavigatedTo>b__0>d.MoveNext() in C:\Users\s245451\Documents\source\AIM\Views\PrintableFormPage.xaml.cs:line 83
+namespace AIM.Services;
 
-
-=== RegisterForPrinting Completed Successfully ===
-[MainWindow] NavigationChanged event: PrintableFormPage
-Exception thrown: 'System.ArgumentException' in WinRT.Runtime.dll
-WinRT information: This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
-An exception of type 'System.ArgumentException' occurred in WinRT.Runtime.dll but was not handled in user code
-WinRT information: This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
-The parameter is incorrect.
-
-This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
-
-
-
-protected override void OnNavigatedTo(NavigationEventArgs e)
+public abstract class BaseInventoryTemplate : IFormTemplate
 {
-    base.OnNavigatedTo(e);
+    private readonly IPrintPaginationService _paginationService;
 
-    if (e.Parameter is PrintableForm form)
+    public abstract string TemplateName { get; }
+
+    protected virtual RowType[] Level3HeaderTypes => new[]
     {
-        _viewModel?. LoadFormData(form);
+        RowType.Level3Header_A,
+        RowType.Level3Header_B,
+        RowType.Level3Header_C
+    };
 
-        // DEBUG: Show what we received after page is fully loaded
-        this.Loaded += async (s, args) =>
+    // Constructor with dependency injection
+    protected BaseInventoryTemplate(IPrintPaginationService paginationService)
+    {
+        _paginationService = paginationService;
+    }
+
+    // Parameterless constructor for backward compatibility
+    protected BaseInventoryTemplate() : this(new PrintPaginationService())
+    {
+    }
+
+    public async Task<PrintableForm> GenerateAsync(string directoryPath)
+    {
+        var form = new PrintableForm
         {
-            await Task.Delay(500); // Wait for everything to settle
-            
+            Header = TemplateName,
+            SubHeader = "Inventory Summary"
+        };
+
+        // Collect all items as a flat list first
+        var allItems = new List<PrintableFormItem>();
+
+        await Task.Run(() =>
+        {
             try
             {
-                var debugInfo = $"Received PrintableForm:\n" +
-                                $"- Header: {form. Header}\n" +
-                                $"- Pages count: {form.Pages?. Count ?? 0}\n" +
-                                $"- PaginationLog count: {Services.PrintPaginationService.PaginationLog.Count}";
+                var opCoDirInfo = new DirectoryInfo(directoryPath);
+                form.Header = opCoDirInfo.Name;
 
-                if (form.Pages?.Count > 0)
+                var level2Dirs = opCoDirInfo.GetDirectories(). OrderBy(d => d.Name).ToList();
+
+                if (! level2Dirs.Any())
                 {
-                    var firstPage = form. Pages[0];
-                    debugInfo += $"\n\nFirst Page:\n" +
-                                 $"- Level2Header: {firstPage.Level2Header}\n" +
-                                 $"- Rows count: {firstPage.Rows?.Count ?? 0}";
-
-                    if (firstPage. Rows?.Count > 0)
-                    {
-                        debugInfo += $"\n- First 5 rows:";
-                        foreach (var row in firstPage. Rows.Take(5))
-                        {
-                            var content = row.Content ??  "(null)";
-                            if (content.Length > 30) content = content.Substring(0, 30) + "...";
-                            debugInfo += $"\n  [{row.Type}] {content}";
-                        }
-                    }
+                    allItems.Add(new PrintableFormItem 
+                    { 
+                        Content = "No subdirectories found in the selected folder.", 
+                        Type = RowType.Level3Header_C 
+                    });
+                    return;
                 }
 
-                if (this.XamlRoot != null)
+                foreach (var level2Dir in level2Dirs)
                 {
-                    var dialog = new ContentDialog
+                    // Add Level 2 header
+                    allItems. Add(new PrintableFormItem 
+                    { 
+                        Content = level2Dir.Name, 
+                        Type = RowType.Level2Header 
+                    });
+
+                    // Get all subdirectories (Level 3)
+                    var level3Dirs = level2Dir.GetDirectories().OrderBy(d => d. Name).ToList();
+
+                    if (level3Dirs.Count == 0)
                     {
-                        Title = "DEBUG: Form Data",
-                        Content = new ScrollViewer
+                        // No subdirectories - add files directly from Level 2
+                        var filesInLevel2 = level2Dir.GetFiles()
+                            .Where(f => !f. Name.StartsWith("."))
+                            .OrderBy(f => f.Name)
+                            .ToList();
+
+                        foreach (var file in filesInLevel2)
                         {
-                            Content = new TextBlock
+                            allItems.Add(new PrintableFormItem
                             {
-                                Text = debugInfo,
-                                TextWrapping = TextWrapping.Wrap,
-                                IsTextSelectionEnabled = true
-                            },
-                            MaxHeight = 400
-                        },
-                        CloseButtonText = "OK",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await dialog.ShowAsync();
+                                Content = Path.GetFileNameWithoutExtension(file.Name),
+                                Type = RowType.File
+                            });
+                        }
+                    }
+                    else
+                    {
+                        // Process Level 3 subdirectories
+                        int headerTypeIndex = 0;
+
+                        foreach (var level3Dir in level3Dirs)
+                        {
+                            RowType headerType = Level3HeaderTypes[headerTypeIndex % Level3HeaderTypes.Length];
+                            headerTypeIndex++;
+
+                            // Add Level 3 header
+                            allItems.Add(new PrintableFormItem
+                            {
+                                Content = level3Dir.Name,
+                                Type = headerType
+                            });
+
+                            // Add files from this Level 3 directory
+                            var files = level3Dir.GetFiles()
+                                .Where(f => !f.Name.StartsWith("."))
+                                .OrderBy(f => f.Name)
+                                . ToList();
+
+                            foreach (var file in files)
+                            {
+                                allItems.Add(new PrintableFormItem
+                                {
+                                    Content = Path.GetFileNameWithoutExtension(file.Name),
+                                    Type = RowType.File
+                                });
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Debug dialog error: {ex.Message}");
+                allItems.Clear();
+                allItems.Add(new PrintableFormItem 
+                { 
+                    Content = $"Form generation failed: {ex.Message}", 
+                    Type = RowType.Level3Header_C 
+                });
             }
+        });
+
+        // Use the pagination service to create properly paginated pages
+        form.Pages = _paginationService.PaginateContent(form.Header, allItems);
+
+        return form;
+    }
+}
+
+
+
+
+
+
+namespace AIM.Services;
+
+public class OhioInventoryTemplate : BaseInventoryTemplate
+{
+    public override string TemplateName => "Ohio";
+
+    public OhioInventoryTemplate(IPrintPaginationService paginationService) 
+        : base(paginationService)
+    {
+    }
+
+    public OhioInventoryTemplate() : base()
+    {
+    }
+}
+
+
+
+
+
+
+
+namespace AIM.Services;
+
+public class FormTemplateFactory
+{
+    private readonly IPrintPaginationService _paginationService;
+
+    public FormTemplateFactory(IPrintPaginationService paginationService)
+    {
+        _paginationService = paginationService;
+    }
+
+    public IFormTemplate GetTemplate(string templateName)
+    {
+        return templateName switch
+        {
+            "Ohio" => new OhioInventoryTemplate(_paginationService),
+            "I&M" => new IMInventoryTemplate(_paginationService),
+            _ => new OhioInventoryTemplate(_paginationService)
         };
     }
 
-    RegisterForPrinting();
+    public IEnumerable<string> GetAvailableTemplates()
+    {
+        return new[] { "Ohio", "I&M" };
+    }
 }
