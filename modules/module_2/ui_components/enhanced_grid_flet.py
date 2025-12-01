@@ -78,9 +78,6 @@ class EnhancedDataGrid(ft.Column):
             spacing=0,
             expand=True,
         )
-        
-        # Set minimum height to ensure proper rendering
-        self.height = None  # Let it expand naturally
     
     def set_data(self, data: List[tuple]):
         """Set grid data"""
