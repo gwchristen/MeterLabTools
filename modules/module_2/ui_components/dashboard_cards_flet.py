@@ -40,7 +40,8 @@ class MetricCard(ft.Container):
             bgcolor=ft.Colors.SURFACE,
             ink=True,
             on_click=on_click,
-            expand=True,
+            width=200,
+            height=120,
         )
     
     def _build_content(self) -> ft.Control:
@@ -115,7 +116,8 @@ class StatisticsCard(ft.Container):
             bgcolor=ft.Colors.SURFACE,
             ink=True,
             on_click=on_click,
-            expand=True,
+            width=240,
+            height=150,
         )
     
     def _build_content(self) -> ft.Control:
@@ -186,7 +188,8 @@ class InfoCard(ft.Container):
             bgcolor=ft.Colors.SURFACE,
             ink=True,
             on_click=on_click,
-            expand=True,
+            width=280,
+            height=140,
         )
     
     def _build_content(self) -> ft.Control:
