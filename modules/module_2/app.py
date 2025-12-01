@@ -1,235 +1,30 @@
 """
-Created Histories Module - Modern Professional UI
-Enhanced with dashboard, advanced filtering, and professional design
+Created Histories Module - Flet-based Modern UI
+Device History Management with dashboard, advanced filtering, and professional design
 """
 
-import sys
+import flet as ft
 import csv
 import hashlib
-import openpyxl
+import os
+import sys
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                            QHBoxLayout, QPushButton, QLabel, QFileDialog,
-                            QMessageBox, QDialog, QFormLayout, QDialogButtonBox,
-                            QLineEdit, QSpinBox, QDoubleSpinBox, QTextEdit,
-                            QStackedWidget, QSplitter, QFrame, QScrollArea,
-                            QGridLayout)
-from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal
-from PyQt6.QtGui import QFont, QShortcut, QKeySequence, QAction
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from inventory_db import InventoryDatabase
-from ui_components.theme import ThemeManager, ColorScheme
-from ui_components.dashboard_cards import MetricCard, StatisticsCard, InfoCard
-from ui_components.enhanced_grid import EnhancedDataGrid, DataGridToolbar
-from ui_components.filter_sidebar import FilterSidebar
-from ui_components.form_builder import FormBuilder
-from ui_components.validation_feedback import ValidationFeedback, Validator
-from ui_components.status_indicators import StatusIndicator, ProgressIndicator
+from ui_components.theme_flet import ThemeManager, get_status_colors
+from ui_components.dashboard_cards_flet import MetricCard, StatisticsCard
+from ui_components.enhanced_grid_flet import EnhancedDataGrid
+from ui_components.filter_sidebar_flet import FilterSidebar
+from ui_components.form_builder_flet import FormBuilder
+from ui_components.status_indicators_flet import StatusIndicator
 
 
-class PasswordDialog(QDialog):
-    """Dialog for entering edit mode password"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Edit Mode")
-        self.setModal(True)
-        self.setFixedSize(350, 150)
-        
-        layout = QFormLayout()
-        layout.setSpacing(12)
-        
-        self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.returnPressed.connect(self.accept)
-        
-        layout.addRow("Master Password:", self.password_input)
-        
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addRow(buttons)
-        
-        self.setLayout(layout)
-    
-    def get_password(self):
-        return self.password_input.text()
-
-
-class ModernAddEditDialog(QDialog):
-    """Modern dialog for adding/editing records with validation"""
-    
-    def __init__(self, parent=None, item=None, opco=None, device_type=None):
-        super().__init__(parent)
-        self.item = item
-        self.opco = opco
-        self.device_type = device_type
-        
-        self.setWindowTitle("Edit Record" if item else "Add New Record")
-        self.setMinimumSize(700, 750)
-        
-        self.setup_ui()
-        
-        if item:
-            self.populate_form()
-    
-    def setup_ui(self):
-        """Setup dialog UI with modern form builder"""
-        layout = QVBoxLayout()
-        layout.setSpacing(12)
-        layout.setContentsMargins(16, 12, 16, 12)
-        
-        # Title
-        title_label = QLabel("Edit Record" if self.item else "New Record")
-        title_label.setProperty("class", "heading")
-        layout.addWidget(title_label)
-        
-        # Form builder
-        self.form = FormBuilder(self)
-        
-        # Device Information Group
-        device_group = self.form.add_group("Device Information")
-        
-        # Read-only fields
-        opco_field = QLineEdit()
-        opco_field.setText(self.opco or "")
-        opco_field.setReadOnly(True)
-        device_group.add_field("OpCo", opco_field)
-        
-        device_type_field = QLineEdit()
-        device_type_field.setText(self.device_type or "")
-        device_type_field.setReadOnly(True)
-        device_group.add_field("Device Type", device_type_field)
-        
-        self.form.add_field_to_group("Device Information", "Status", "text",
-                                     placeholder="Active, Inactive, etc.")
-        self.form.add_field_to_group("Device Information", "Manufacturer", "text",
-                                     placeholder="Device manufacturer")
-        self.form.add_field_to_group("Device Information", "Device Code", "text",
-                                     required=True, placeholder="Unique device code")
-        
-        # Serial Numbers Group
-        self.form.add_field_to_group("Serial Numbers", "Beginning Serial", "text",
-                                     placeholder="Starting serial number")
-        self.form.add_field_to_group("Serial Numbers", "Ending Serial", "text",
-                                     placeholder="Ending serial number")
-        self.form.add_field_to_group("Serial Numbers", "Quantity", "number",
-                                     min=0, max=100000)
-        
-        # Purchase Information Group
-        self.form.add_field_to_group("Purchase Information", "PO Date", "text",
-                                     placeholder="YYYY-MM-DD")
-        self.form.add_field_to_group("Purchase Information", "PO Number", "text",
-                                     placeholder="Purchase order number")
-        self.form.add_field_to_group("Purchase Information", "Received Date", "text",
-                                     placeholder="YYYY-MM-DD")
-        self.form.add_field_to_group("Purchase Information", "Unit Cost", "decimal",
-                                     min=0.0, max=999999.99, decimals=2)
-        
-        # Additional Information Group
-        self.form.add_field_to_group("Additional Information", "CID", "text",
-                                     placeholder="Customer ID")
-        self.form.add_field_to_group("Additional Information", "M.E. #", "text",
-                                     placeholder="M.E. Number")
-        self.form.add_field_to_group("Additional Information", "Purchase Code", "text",
-                                     placeholder="Purchase code")
-        self.form.add_field_to_group("Additional Information", "Est.", "text",
-                                     placeholder="Estimate")
-        self.form.add_field_to_group("Additional Information", "Use", "text",
-                                     placeholder="Usage type")
-        
-        # Notes Group
-        self.form.add_field_to_group("Notes", "Notes 1", "multiline",
-                                     height=60, placeholder="Additional notes...")
-        self.form.add_field_to_group("Notes", "Notes 2", "multiline",
-                                     height=60, placeholder="Additional notes...")
-        
-        layout.addWidget(self.form)
-        
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setProperty("class", "secondary")
-        cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
-        
-        save_btn = QPushButton("💾 Save Record")
-        save_btn.clicked.connect(self.accept)
-        button_layout.addWidget(save_btn)
-        
-        layout.addLayout(button_layout)
-        
-        self.setLayout(layout)
-    
-    def populate_form(self):
-        """Populate form with existing item data"""
-        if not self.item:
-            return
-        
-        # Map field labels to item keys
-        field_mapping = {
-            ("Device Information", "Status"): 'status',
-            ("Device Information", "Manufacturer"): 'mfr',
-            ("Device Information", "Device Code"): 'dev_code',
-            ("Serial Numbers", "Beginning Serial"): 'beg_ser',
-            ("Serial Numbers", "Ending Serial"): 'end_ser',
-            ("Serial Numbers", "Quantity"): 'qty',
-            ("Purchase Information", "PO Date"): 'po_date',
-            ("Purchase Information", "PO Number"): 'po_number',
-            ("Purchase Information", "Received Date"): 'recv_date',
-            ("Purchase Information", "Unit Cost"): 'unit_cost',
-            ("Additional Information", "CID"): 'cid',
-            ("Additional Information", "M.E. #"): 'me_number',
-            ("Additional Information", "Purchase Code"): 'pur_code',
-            ("Additional Information", "Est."): 'est',
-            ("Additional Information", "Use"): 'use',
-            ("Notes", "Notes 1"): 'notes1',
-            ("Notes", "Notes 2"): 'notes2',
-        }
-        
-        for (group, field), key in field_mapping.items():
-            value = self.item.get(key, '')
-            if value is not None:
-                group_widget = self.form.groups.get(group)
-                if group_widget:
-                    group_widget.set_value(field, value)
-    
-    def get_data(self):
-        """Get form data"""
-        values = self.form.get_all_values()
-        
-        return {
-            'opco': self.opco,
-            'device_type': self.device_type,
-            'status': values.get('Device Information', {}).get('Status', ''),
-            'mfr': values.get('Device Information', {}).get('Manufacturer', ''),
-            'dev_code': values.get('Device Information', {}).get('Device Code', ''),
-            'beg_ser': values.get('Serial Numbers', {}).get('Beginning Serial', ''),
-            'end_ser': values.get('Serial Numbers', {}).get('Ending Serial', ''),
-            'qty': values.get('Serial Numbers', {}).get('Quantity', 0),
-            'po_date': values.get('Purchase Information', {}).get('PO Date', ''),
-            'po_number': values.get('Purchase Information', {}).get('PO Number', ''),
-            'recv_date': values.get('Purchase Information', {}).get('Received Date', ''),
-            'unit_cost': values.get('Purchase Information', {}).get('Unit Cost', 0.0),
-            'cid': values.get('Additional Information', {}).get('CID', ''),
-            'me_number': values.get('Additional Information', {}).get('M.E. #', ''),
-            'pur_code': values.get('Additional Information', {}).get('Purchase Code', ''),
-            'est': values.get('Additional Information', {}).get('Est.', ''),
-            'use': values.get('Additional Information', {}).get('Use', ''),
-            'notes1': values.get('Notes', {}).get('Notes 1', ''),
-            'notes2': values.get('Notes', {}).get('Notes 2', ''),
-        }
-
-
-class CreatedHistoriesApp(QMainWindow):
-    """Modern Created Histories Application"""
+class CreatedHistoriesApp:
+    """Modern Created Histories Application using Flet"""
     
     # Master password hash (default: "admin123")
     MASTER_PASSWORD_HASH = "0192023a7bbd73250516f069df18b500"
@@ -255,366 +50,714 @@ class CreatedHistoriesApp(QMainWindow):
         'I&M - Transformers': ('I&M', 'Transformers'),
     }
     
-    # Sidebar configuration constants
-    SIDEBAR_EXPANDED_WIDTH = 260
-    SIDEBAR_COLLAPSED_WIDTH = 50
-    SIDEBAR_ANIMATION_DURATION = 200  # milliseconds
-    RESPONSIVE_BREAKPOINT_WIDTH = 1200  # pixels
-    SIDEBAR_STATE_AUTO = "auto"
-    SIDEBAR_STATE_MANUAL = "manual"
-    
-    def __init__(self, parent_theme="Light"):
-        super().__init__()
-        
-        self.setWindowTitle("Created Histories - Device History Management")
-        self.setGeometry(50, 50, 1600, 900)
+    def __init__(self, page: ft.Page):
+        self.page = page
         self.edit_mode = False
-        self.current_theme = parent_theme
-        self.current_sheet = None
+        self.current_theme = "Light"
+        self.current_sheet: Optional[str] = None
+        self.current_view = "dashboard"
         
         # Initialize database
         self.db = InventoryDatabase('created_histories.db')
         self.db.init_db()
         
-        # Sidebar state
-        self.sidebar_collapsed = False
-        self.sidebar_manual_state_cache = None  # Cache for performance
-        self.sidebar_animation = None  # Reusable animation object
-        self.sidebar_max_animation = None  # Reusable animation object
-        self.last_responsive_width_state = None  # Track last responsive state to prevent duplicate triggers
+        # UI component references
+        self.nav_rail: Optional[ft.NavigationRail] = None
+        self.content_area: Optional[ft.Container] = None
+        self.breadcrumb_label: Optional[ft.Text] = None
+        self.subtitle_label: Optional[ft.Text] = None
+        self.mode_indicator: Optional[StatusIndicator] = None
+        self.edit_mode_btn: Optional[ft.TextButton] = None
         
-        # Setup UI
-        self.setup_ui()
+        # Dashboard cards
+        self.total_records_card: Optional[MetricCard] = None
+        self.total_devices_card: Optional[MetricCard] = None
+        self.total_value_card: Optional[MetricCard] = None
+        self.avg_cost_card: Optional[MetricCard] = None
+        self.sheet_stats_cards: Dict[str, StatisticsCard] = {}
         
-        # Setup keyboard shortcut for sidebar toggle
-        self.sidebar_shortcut = QShortcut(QKeySequence("Alt+S"), self)
-        self.sidebar_shortcut.activated.connect(self.toggle_sidebar)
+        # Sheet views
+        self.sheet_grids: Dict[str, EnhancedDataGrid] = {}
+        self.sheet_filter_sidebars: Dict[str, FilterSidebar] = {}
+        self.sheet_filter_visible: Dict[str, bool] = {}
         
-        # Apply theme
-        self.apply_theme(self.current_theme)
+        # Setup page
+        self.setup_page()
         
-        # Load sidebar state from database
+        # Build UI
+        self.build_ui()
+        
+        # Load sidebar state
         self.load_sidebar_state()
         
-        # Show dashboard by default
-        self.show_dashboard()
+        print("Created Histories App initialized!")
     
-    def setup_ui(self):
-        """Setup modern UI"""
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        
-        main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        
-        # Sidebar for sheet selection
-        self.sidebar = self.create_sidebar()
-        main_layout.addWidget(self.sidebar)
-        
-        # Main content area
-        content_widget = QWidget()
-        content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(0)
-        
-        # Header/toolbar
-        self.header = self.create_header()
-        content_layout.addWidget(self.header)
-        
-        # Stacked widget for different views
-        self.stack = QStackedWidget()
-        content_layout.addWidget(self.stack)
-        
-        # Create views
-        self.dashboard_view = self.create_dashboard_view()
-        self.stack.addWidget(self.dashboard_view)
-        
-        # Create sheet views
-        self.sheet_views = {}
-        for opco, device_type in self.SHEETS:
-            sheet_name = f"{opco} - {device_type}"
-            view = self.create_sheet_view(opco, device_type)
-            self.sheet_views[sheet_name] = view
-            self.stack.addWidget(view)
-        
-        content_widget.setLayout(content_layout)
-        main_layout.addWidget(content_widget, 1)
-        
-        central_widget.setLayout(main_layout)
-        
-        # Create menu bar
-        self.create_menu_bar()
+    def setup_page(self):
+        """Configure page settings"""
+        self.page.title = "Created Histories - Device History Management"
+        self.page.window.width = 1400
+        self.page.window.height = 900
+        self.page.padding = 0
+        self.page.theme_mode = ft.ThemeMode.LIGHT
+        self.page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE)
     
-    def create_header(self) -> QWidget:
-        """Create header with breadcrumb and actions"""
-        header = QFrame()
-        header.setFrameShape(QFrame.Shape.StyledPanel)
-        header.setMinimumHeight(64)
-        header.setMaximumHeight(64)
+    def build_ui(self):
+        """Build the main user interface"""
+        # Create AppBar
+        app_bar = self.create_app_bar()
         
-        layout = QHBoxLayout()
-        layout.setContentsMargins(16, 8, 16, 8)
+        # Create NavigationRail
+        self.nav_rail = self.create_navigation_rail()
         
-        # Sidebar toggle button
-        self.sidebar_toggle_btn = QPushButton("☰")
-        self.sidebar_toggle_btn.setProperty("class", "secondary")
-        self.sidebar_toggle_btn.setMinimumSize(36, 36)
-        self.sidebar_toggle_btn.setMaximumSize(36, 36)
-        self.sidebar_toggle_btn.setToolTip("Toggle Sidebar (Alt+S)")
-        self.sidebar_toggle_btn.clicked.connect(self.toggle_sidebar)
-        self.sidebar_toggle_btn.setAccessibleName("Toggle Sidebar")
-        self.sidebar_toggle_btn.setAccessibleDescription("Collapse or expand the sidebar navigation")
-        layout.addWidget(self.sidebar_toggle_btn)
+        # Create main content area
+        self.content_area = ft.Container(
+            content=self.create_dashboard_view(),
+            expand=True,
+            padding=20,
+        )
         
-        # Breadcrumb navigation
-        breadcrumb_layout = QVBoxLayout()
+        # Main layout with NavigationRail and content
+        main_content = ft.Row(
+            controls=[
+                self.nav_rail,
+                ft.VerticalDivider(width=1),
+                self.content_area,
+            ],
+            expand=True,
+            spacing=0,
+        )
         
-        self.breadcrumb_label = QLabel("Dashboard")
-        self.breadcrumb_label.setProperty("class", "heading")
-        breadcrumb_layout.addWidget(self.breadcrumb_label)
+        # Set page controls
+        self.page.appbar = app_bar
+        self.page.add(main_content)
+    
+    def create_app_bar(self) -> ft.AppBar:
+        """Create the application bar"""
+        # Breadcrumb and subtitle
+        self.breadcrumb_label = ft.Text(
+            "Dashboard",
+            size=18,
+            weight=ft.FontWeight.BOLD,
+        )
+        self.subtitle_label = ft.Text(
+            "Overview of all device histories",
+            size=12,
+            color=ft.Colors.ON_SURFACE_VARIANT,
+        )
         
-        self.subtitle_label = QLabel("Overview of all device histories")
-        self.subtitle_label.setProperty("class", "caption")
-        breadcrumb_layout.addWidget(self.subtitle_label)
+        breadcrumb_column = ft.Column(
+            controls=[self.breadcrumb_label, self.subtitle_label],
+            spacing=0,
+        )
         
-        layout.addLayout(breadcrumb_layout)
-        
-        layout.addStretch()
-        
-        # Status indicator
+        # Mode indicator
         self.mode_indicator = StatusIndicator('inactive', 'Read-Only')
-        layout.addWidget(self.mode_indicator)
         
-        # Edit mode toggle
-        self.toggle_mode_btn = QPushButton("🔓 Enable Edit Mode")
-        self.toggle_mode_btn.setMinimumWidth(160)
-        self.toggle_mode_btn.clicked.connect(self.toggle_edit_mode)
-        layout.addWidget(self.toggle_mode_btn)
+        # Edit mode button
+        self.edit_mode_btn = ft.TextButton(
+            text="🔓 Enable Edit Mode",
+            on_click=self.toggle_edit_mode,
+        )
         
-        header.setLayout(layout)
-        return header
+        return ft.AppBar(
+            leading=ft.Icon(ft.Icons.HISTORY_EDU),
+            leading_width=50,
+            title=breadcrumb_column,
+            center_title=False,
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+            actions=[
+                self.mode_indicator,
+                ft.Container(width=16),
+                self.edit_mode_btn,
+                ft.Container(width=16),
+                ft.IconButton(
+                    icon=ft.Icons.LIGHT_MODE,
+                    tooltip="Toggle Theme",
+                    on_click=self.toggle_theme,
+                ),
+                ft.PopupMenuButton(
+                    icon=ft.Icons.MORE_VERT,
+                    items=[
+                        ft.PopupMenuItem(
+                            text="About",
+                            icon=ft.Icons.INFO_OUTLINE,
+                            on_click=self.show_about,
+                        ),
+                        ft.PopupMenuItem(
+                            text="Help",
+                            icon=ft.Icons.HELP_OUTLINE,
+                            on_click=self.show_help,
+                        ),
+                    ],
+                ),
+            ],
+        )
     
-    def create_sidebar(self) -> QFrame:
-        """Create modern sidebar with collapsible support"""
-        sidebar = QFrame()
-        sidebar.setProperty("class", "sidebar")
-        sidebar.setMinimumWidth(self.SIDEBAR_EXPANDED_WIDTH)
-        sidebar.setMaximumWidth(self.SIDEBAR_EXPANDED_WIDTH)
+    def create_navigation_rail(self) -> ft.NavigationRail:
+        """Create the navigation rail"""
+        destinations = [
+            ft.NavigationRailDestination(
+                icon=ft.Icons.DASHBOARD_OUTLINED,
+                selected_icon=ft.Icons.DASHBOARD,
+                label="Dashboard",
+            ),
+        ]
         
-        layout = QVBoxLayout()
-        layout.setContentsMargins(8, 12, 8, 8)
-        layout.setSpacing(8)
-        
-        # Logo/Title
-        self.sidebar_title = QLabel("📊 Created Histories")
-        self.sidebar_title.setProperty("class", "subheading")
-        self.sidebar_title.setStyleSheet("padding: 6px; margin-bottom: 12px;")
-        layout.addWidget(self.sidebar_title)
-        
-        # Dashboard button
-        dashboard_btn = QPushButton("🏠 Dashboard")
-        dashboard_btn.setProperty("class", "secondary")
-        dashboard_btn.setMinimumHeight(40)
-        dashboard_btn.setToolTip("Dashboard")
-        dashboard_btn.clicked.connect(self.show_dashboard)
-        dashboard_btn.setAccessibleName("Dashboard")
-        layout.addWidget(dashboard_btn)
-        self.dashboard_btn = dashboard_btn
-        
-        # Separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("margin: 8px 0;")
-        layout.addWidget(separator)
-        
-        # Sheets section
-        self.sheets_label = QLabel("SHEETS")
-        self.sheets_label.setProperty("class", "caption")
-        self.sheets_label.setStyleSheet("font-weight: 600; padding: 6px; text-transform: uppercase; letter-spacing: 0.5px;")
-        layout.addWidget(self.sheets_label)
-        
-        # Sheet buttons
-        self.sheet_buttons = {}
+        # Add sheet destinations
         for opco, device_type in self.SHEETS:
             sheet_name = f"{opco} - {device_type}"
-            btn = QPushButton(f"📋 {sheet_name}")
-            btn.setProperty("class", "secondary")
-            btn.setMinimumHeight(40)
-            btn.setToolTip(sheet_name)
-            btn.clicked.connect(lambda checked, name=sheet_name: self.show_sheet(name))
-            btn.setAccessibleName(sheet_name)
-            layout.addWidget(btn)
-            self.sheet_buttons[sheet_name] = btn
+            destinations.append(
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.TABLE_CHART_OUTLINED,
+                    selected_icon=ft.Icons.TABLE_CHART,
+                    label=sheet_name,
+                )
+            )
         
-        layout.addStretch()
-        
-        # Version info
-        self.version_label = QLabel("v2.0.0")
-        self.version_label.setProperty("class", "caption")
-        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.version_label)
-        
-        sidebar.setLayout(layout)
-        return sidebar
+        return ft.NavigationRail(
+            selected_index=0,
+            label_type=ft.NavigationRailLabelType.ALL,
+            min_width=100,
+            min_extended_width=200,
+            destinations=destinations,
+            on_change=self.on_nav_change,
+        )
     
-    def create_dashboard_view(self) -> QWidget:
-        """Create dashboard with metrics"""
-        dashboard = QScrollArea()
-        dashboard.setWidgetResizable(True)
-        dashboard.setFrameShape(QFrame.Shape.NoFrame)
+    def on_nav_change(self, e):
+        """Handle navigation rail selection changes"""
+        index = e.control.selected_index
         
-        container = QWidget()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(16)
+        if index == 0:
+            self.show_dashboard()
+        else:
+            # Sheet index (0-based after dashboard)
+            sheet_idx = index - 1
+            if 0 <= sheet_idx < len(self.SHEETS):
+                opco, device_type = self.SHEETS[sheet_idx]
+                sheet_name = f"{opco} - {device_type}"
+                self.show_sheet(sheet_name)
         
-        # Metrics cards
-        metrics_layout = QGridLayout()
-        metrics_layout.setSpacing(12)
-        
+        self.page.update()
+    
+    def create_dashboard_view(self) -> ft.Control:
+        """Create the dashboard view with metrics"""
+        # Metric cards row
         self.total_records_card = MetricCard("Total Records", "0", "📊")
-        metrics_layout.addWidget(self.total_records_card, 0, 0)
-        
         self.total_devices_card = MetricCard("Total Devices", "0", "🔧")
-        metrics_layout.addWidget(self.total_devices_card, 0, 1)
-        
         self.total_value_card = MetricCard("Total Value", "$0", "💰")
-        metrics_layout.addWidget(self.total_value_card, 0, 2)
-        
         self.avg_cost_card = MetricCard("Avg. Unit Cost", "$0", "📈")
-        metrics_layout.addWidget(self.avg_cost_card, 0, 3)
         
-        layout.addLayout(metrics_layout)
+        metrics_row = ft.Row(
+            controls=[
+                self.total_records_card,
+                self.total_devices_card,
+                self.total_value_card,
+                self.avg_cost_card,
+            ],
+            spacing=16,
+            wrap=True,
+            run_spacing=16,
+        )
         
-        # Sheet statistics
-        sheets_label = QLabel("Sheet Statistics")
-        sheets_label.setProperty("class", "subheading")
-        layout.addWidget(sheets_label)
+        # Sheet statistics section
+        sheet_stats_label = ft.Text(
+            "Sheet Statistics",
+            size=18,
+            weight=ft.FontWeight.W_600,
+        )
         
-        sheets_grid = QGridLayout()
-        sheets_grid.setSpacing(12)
+        # Create stats cards for each sheet
+        sheet_stats_row = ft.Row(
+            controls=[],
+            spacing=16,
+            wrap=True,
+            run_spacing=16,
+        )
         
-        self.sheet_stats_cards = {}
-        for idx, (opco, device_type) in enumerate(self.SHEETS):
+        for opco, device_type in self.SHEETS:
             sheet_name = f"{opco} - {device_type}"
             card = StatisticsCard(sheet_name, {})
-            sheets_grid.addWidget(card, idx // 2, idx % 2)
             self.sheet_stats_cards[sheet_name] = card
+            sheet_stats_row.controls.append(card)
         
-        layout.addLayout(sheets_grid)
+        # Build dashboard layout
+        dashboard = ft.Column(
+            controls=[
+                ft.Text("Dashboard", size=24, weight=ft.FontWeight.BOLD),
+                ft.Container(height=16),
+                metrics_row,
+                ft.Container(height=24),
+                sheet_stats_label,
+                ft.Container(height=16),
+                sheet_stats_row,
+            ],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+        )
         
-        layout.addStretch()
-        
-        container.setLayout(layout)
-        dashboard.setWidget(container)
+        # Update metrics
+        self.update_dashboard_metrics()
         
         return dashboard
     
-    def create_sheet_view(self, opco: str, device_type: str) -> QWidget:
-        """Create modern sheet view with grid and filters"""
-        view = QWidget()
-        layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        # Main content
-        content_widget = QWidget()
-        content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(16, 12, 16, 12)
-        content_layout.setSpacing(12)
-        
-        # Toolbar
-        toolbar_layout = QHBoxLayout()
-        toolbar_layout.setSpacing(6)
-        
-        add_btn = QPushButton("➕ Add Record")
-        add_btn.clicked.connect(lambda: self.add_record(opco, device_type))
-        toolbar_layout.addWidget(add_btn)
-        
-        edit_btn = QPushButton("✏️ Edit")
-        edit_btn.setProperty("class", "secondary")
-        edit_btn.clicked.connect(lambda: self.edit_record(opco, device_type))
-        toolbar_layout.addWidget(edit_btn)
-        
-        delete_btn = QPushButton("🗑️ Delete")
-        delete_btn.setProperty("class", "error")
-        delete_btn.clicked.connect(lambda: self.delete_record(opco, device_type))
-        toolbar_layout.addWidget(delete_btn)
-        
-        toolbar_layout.addStretch()
-        
-        import_btn = QPushButton("📥 Import")
-        import_btn.setProperty("class", "secondary")
-        import_btn.clicked.connect(lambda: self.import_data(opco, device_type))
-        toolbar_layout.addWidget(import_btn)
-        
-        export_btn = QPushButton("📤 Export")
-        export_btn.setProperty("class", "secondary")
-        export_btn.clicked.connect(lambda: self.export_data(opco, device_type))
-        toolbar_layout.addWidget(export_btn)
-        
-        stats_btn = QPushButton("📊 Statistics")
-        stats_btn.setProperty("class", "secondary")
-        stats_btn.clicked.connect(lambda: self.show_statistics(opco, device_type))
-        toolbar_layout.addWidget(stats_btn)
-        
-        filter_btn = QPushButton("🔽 Filters")
-        filter_btn.setProperty("class", "secondary")
-        filter_btn.setCheckable(True)
-        filter_btn.clicked.connect(lambda checked: self.toggle_filters(opco, device_type, checked))
-        toolbar_layout.addWidget(filter_btn)
-        
-        content_layout.addLayout(toolbar_layout)
-        
-        # Enhanced data grid
-        grid = EnhancedDataGrid(self.COLUMNS)
-        grid.row_double_clicked.connect(lambda row: self.edit_record(opco, device_type))
-        content_layout.addWidget(grid)
-        
-        content_widget.setLayout(content_layout)
-        
-        # Splitter for filter sidebar
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(content_widget)
-        
-        # Filter sidebar (initially hidden)
-        filter_sidebar = FilterSidebar(self.COLUMNS)
-        filter_sidebar.apply_filters.connect(lambda filters: self.apply_filters(opco, device_type, filters))
-        filter_sidebar.clear_filters.connect(lambda: self.load_sheet_data(opco, device_type))
-        filter_sidebar.hide()
-        splitter.addWidget(filter_sidebar)
-        
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 0)
-        
-        layout.addWidget(splitter)
-        view.setLayout(layout)
-        
-        # Store references
-        view.grid = grid
-        view.filter_sidebar = filter_sidebar
-        view.filter_btn = filter_btn
-        view.opco = opco
-        view.device_type = device_type
-        
-        return view
-    
-    def toggle_filters(self, opco: str, device_type: str, show: bool):
-        """Toggle filter sidebar"""
+    def create_sheet_view(self, opco: str, device_type: str) -> ft.Control:
+        """Create a sheet view with data grid and toolbar"""
         sheet_name = f"{opco} - {device_type}"
-        view = self.sheet_views.get(sheet_name)
-        if view:
-            if show:
-                view.filter_sidebar.show()
+        
+        # Create data grid
+        grid = EnhancedDataGrid(
+            columns=self.COLUMNS,
+            on_row_double_click=lambda idx: self.edit_record(opco, device_type),
+        )
+        self.sheet_grids[sheet_name] = grid
+        
+        # Create toolbar
+        toolbar = ft.Row(
+            controls=[
+                ft.FilledButton(
+                    text="Add Record",
+                    icon=ft.Icons.ADD,
+                    on_click=lambda e: self.add_record(opco, device_type),
+                ),
+                ft.OutlinedButton(
+                    text="Edit",
+                    icon=ft.Icons.EDIT,
+                    on_click=lambda e: self.edit_record(opco, device_type),
+                ),
+                ft.OutlinedButton(
+                    text="Delete",
+                    icon=ft.Icons.DELETE,
+                    style=ft.ButtonStyle(color=ft.Colors.ERROR),
+                    on_click=lambda e: self.delete_record(opco, device_type),
+                ),
+                ft.Container(expand=True),
+                ft.OutlinedButton(
+                    text="Import",
+                    icon=ft.Icons.FILE_UPLOAD,
+                    on_click=lambda e: self.import_data(opco, device_type),
+                ),
+                ft.OutlinedButton(
+                    text="Export",
+                    icon=ft.Icons.FILE_DOWNLOAD,
+                    on_click=lambda e: self.export_data(opco, device_type),
+                ),
+                ft.OutlinedButton(
+                    text="Statistics",
+                    icon=ft.Icons.BAR_CHART,
+                    on_click=lambda e: self.show_statistics(opco, device_type),
+                ),
+                ft.OutlinedButton(
+                    text="Filters",
+                    icon=ft.Icons.FILTER_LIST,
+                    on_click=lambda e: self.toggle_filters(opco, device_type),
+                ),
+            ],
+            spacing=8,
+        )
+        
+        # Create filter sidebar
+        filter_sidebar = FilterSidebar(
+            fields=self.COLUMNS,
+            on_apply_filters=lambda filters: self.apply_filters(opco, device_type, filters),
+            on_clear_filters=lambda: self.load_sheet_data(opco, device_type),
+        )
+        self.sheet_filter_sidebars[sheet_name] = filter_sidebar
+        self.sheet_filter_visible[sheet_name] = False
+        
+        # Create main content with optional filter sidebar
+        main_content = ft.Row(
+            controls=[
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            toolbar,
+                            ft.Container(height=16),
+                            grid,
+                        ],
+                        expand=True,
+                    ),
+                    expand=True,
+                ),
+            ],
+            expand=True,
+        )
+        
+        # Load data
+        self.load_sheet_data(opco, device_type)
+        
+        return main_content
+    
+    def show_dashboard(self):
+        """Show dashboard view"""
+        self.current_view = "dashboard"
+        self.current_sheet = None
+        
+        if self.breadcrumb_label:
+            self.breadcrumb_label.value = "Dashboard"
+        if self.subtitle_label:
+            self.subtitle_label.value = "Overview of all device histories"
+        
+        if self.content_area:
+            self.content_area.content = self.create_dashboard_view()
+        
+        self.page.update()
+    
+    def show_sheet(self, sheet_name: str):
+        """Show specific sheet"""
+        self.current_view = "sheet"
+        self.current_sheet = sheet_name
+        
+        # Find opco and device_type
+        opco, device_type = None, None
+        for o, d in self.SHEETS:
+            if f"{o} - {d}" == sheet_name:
+                opco, device_type = o, d
+                break
+        
+        if not opco or not device_type:
+            return
+        
+        if self.breadcrumb_label:
+            self.breadcrumb_label.value = sheet_name
+        if self.subtitle_label:
+            self.subtitle_label.value = f"Manage {sheet_name} device records"
+        
+        if self.content_area:
+            self.content_area.content = self.create_sheet_view(opco, device_type)
+        
+        self.page.update()
+    
+    def load_sheet_data(self, opco: str, device_type: str):
+        """Load data for sheet"""
+        try:
+            sheet_name = f"{opco} - {device_type}"
+            grid = self.sheet_grids.get(sheet_name)
+            if not grid:
+                return
+            
+            items = self.db.get_items_by_sheet(opco, device_type)
+            grid.set_data(items)
+            
+        except Exception as e:
+            self.show_snackbar(f"Error loading data: {e}", is_error=True)
+    
+    def update_dashboard_metrics(self):
+        """Update dashboard metrics"""
+        try:
+            total_records = 0
+            total_qty = 0
+            total_value = 0.0
+            costs = []
+            
+            for opco, device_type in self.SHEETS:
+                stats = self.db.get_statistics(opco, device_type)
+                
+                total_records += stats.get('total_items', 0)
+                total_qty += stats.get('total_qty', 0)
+                total_value += stats.get('total_value', 0.0)
+                
+                avg_cost = stats.get('avg_cost', 0.0)
+                if avg_cost > 0:
+                    costs.append(avg_cost)
+                
+                # Update sheet card
+                sheet_name = f"{opco} - {device_type}"
+                card = self.sheet_stats_cards.get(sheet_name)
+                if card:
+                    card.update_stats({
+                        'Records': stats.get('total_items', 0),
+                        'Devices': stats.get('total_qty', 0),
+                        'Value': f"${stats.get('total_value', 0.0):,.2f}"
+                    })
+            
+            # Update metric cards
+            if self.total_records_card:
+                self.total_records_card.update_value(f"{total_records:,}")
+            if self.total_devices_card:
+                self.total_devices_card.update_value(f"{total_qty:,}")
+            if self.total_value_card:
+                self.total_value_card.update_value(f"${total_value:,.2f}")
+            
+            avg_cost = sum(costs) / len(costs) if costs else 0
+            if self.avg_cost_card:
+                self.avg_cost_card.update_value(f"${avg_cost:,.2f}")
+            
+        except Exception as e:
+            print(f"Error updating metrics: {e}")
+    
+    def toggle_edit_mode(self, e):
+        """Toggle edit mode with password"""
+        if self.edit_mode:
+            self.edit_mode = False
+            if self.mode_indicator:
+                self.mode_indicator.update_status('inactive', 'Read-Only')
+            if self.edit_mode_btn:
+                self.edit_mode_btn.text = "🔓 Enable Edit Mode"
+            self.show_snackbar("Edit mode disabled")
+        else:
+            self.show_password_dialog()
+        
+        self.page.update()
+    
+    def show_password_dialog(self):
+        """Show password dialog for edit mode"""
+        password_field = ft.TextField(
+            label="Master Password",
+            password=True,
+            can_reveal_password=True,
+            autofocus=True,
+        )
+        
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+        
+        def submit_password(e):
+            password = password_field.value or ""
+            password_hash = hashlib.md5(password.encode()).hexdigest()
+            
+            if password_hash == self.MASTER_PASSWORD_HASH:
+                self.edit_mode = True
+                if self.mode_indicator:
+                    self.mode_indicator.update_status('success', 'Edit Mode')
+                if self.edit_mode_btn:
+                    self.edit_mode_btn.text = "🔒 Disable Edit Mode"
+                self.show_snackbar("Edit mode enabled!")
+                dialog.open = False
             else:
-                view.filter_sidebar.hide()
+                self.show_snackbar("Incorrect password", is_error=True)
+            
+            self.page.update()
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Enter Password"),
+            content=ft.Container(
+                content=password_field,
+                width=300,
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.FilledButton("OK", on_click=submit_password),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def add_record(self, opco: str, device_type: str):
+        """Add new record"""
+        if not self.edit_mode:
+            self.show_snackbar("Edit mode is locked. Enable edit mode first.", is_error=True)
+            return
+        
+        self.show_add_edit_dialog(opco, device_type, None)
+    
+    def edit_record(self, opco: str, device_type: str):
+        """Edit selected record"""
+        if not self.edit_mode:
+            self.show_snackbar("Edit mode is locked. Enable edit mode first.", is_error=True)
+            return
+        
+        sheet_name = f"{opco} - {device_type}"
+        grid = self.sheet_grids.get(sheet_name)
+        if not grid:
+            return
+        
+        row_data = grid.get_selected_data()
+        if not row_data:
+            self.show_snackbar("Please select a record to edit", is_error=True)
+            return
+        
+        item_id = row_data[0]
+        item = self.db.get_item_by_id(item_id)
+        
+        if not item:
+            self.show_snackbar("Could not load record", is_error=True)
+            return
+        
+        self.show_add_edit_dialog(opco, device_type, item)
+    
+    def show_add_edit_dialog(self, opco: str, device_type: str, item: Optional[Dict] = None):
+        """Show add/edit record dialog"""
+        is_edit = item is not None
+        
+        # Create form fields
+        status_field = ft.TextField(label="Status", value=item.get('status', '') if item else '')
+        mfr_field = ft.TextField(label="Manufacturer", value=item.get('mfr', '') if item else '')
+        dev_code_field = ft.TextField(label="Device Code", value=item.get('dev_code', '') if item else '')
+        beg_ser_field = ft.TextField(label="Beginning Serial", value=item.get('beg_ser', '') if item else '')
+        end_ser_field = ft.TextField(label="Ending Serial", value=item.get('end_ser', '') if item else '')
+        qty_field = ft.TextField(label="Quantity", value=str(item.get('qty', 0)) if item else '0', keyboard_type=ft.KeyboardType.NUMBER)
+        po_date_field = ft.TextField(label="PO Date", value=item.get('po_date', '') if item else '')
+        po_number_field = ft.TextField(label="PO Number", value=item.get('po_number', '') if item else '')
+        recv_date_field = ft.TextField(label="Received Date", value=item.get('recv_date', '') if item else '')
+        unit_cost_field = ft.TextField(label="Unit Cost", value=str(item.get('unit_cost', 0.0)) if item else '0.00')
+        cid_field = ft.TextField(label="CID", value=item.get('cid', '') if item else '')
+        me_number_field = ft.TextField(label="M.E. #", value=item.get('me_number', '') if item else '')
+        pur_code_field = ft.TextField(label="Purchase Code", value=item.get('pur_code', '') if item else '')
+        est_field = ft.TextField(label="Est.", value=item.get('est', '') if item else '')
+        use_field = ft.TextField(label="Use", value=item.get('use', '') if item else '')
+        notes1_field = ft.TextField(label="Notes 1", value=item.get('notes1', '') if item else '', multiline=True)
+        notes2_field = ft.TextField(label="Notes 2", value=item.get('notes2', '') if item else '', multiline=True)
+        
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+        
+        def save_record(e):
+            try:
+                # Parse values
+                qty = int(qty_field.value or 0)
+            except ValueError:
+                qty = 0
+            
+            try:
+                unit_cost = float(unit_cost_field.value or 0.0)
+            except ValueError:
+                unit_cost = 0.0
+            
+            record_data = {
+                'opco': opco,
+                'device_type': device_type,
+                'status': status_field.value or '',
+                'mfr': mfr_field.value or '',
+                'dev_code': dev_code_field.value or '',
+                'beg_ser': beg_ser_field.value or '',
+                'end_ser': end_ser_field.value or '',
+                'qty': qty,
+                'po_date': po_date_field.value or '',
+                'po_number': po_number_field.value or '',
+                'recv_date': recv_date_field.value or '',
+                'unit_cost': unit_cost,
+                'cid': cid_field.value or '',
+                'me_number': me_number_field.value or '',
+                'pur_code': pur_code_field.value or '',
+                'est': est_field.value or '',
+                'use': use_field.value or '',
+                'notes1': notes1_field.value or '',
+                'notes2': notes2_field.value or '',
+            }
+            
+            if is_edit:
+                item_id = item.get('id')
+                if self.db.update_item(item_id, record_data):
+                    self.show_snackbar("Record updated successfully")
+                else:
+                    self.show_snackbar("Failed to update record", is_error=True)
+            else:
+                item_id = self.db.insert_item(record_data)
+                if item_id > 0:
+                    self.show_snackbar("Record added successfully")
+                else:
+                    self.show_snackbar("Failed to add record", is_error=True)
+            
+            dialog.open = False
+            self.load_sheet_data(opco, device_type)
+            self.update_dashboard_metrics()
+            self.page.update()
+        
+        # Build form content
+        form_content = ft.Column(
+            controls=[
+                ft.Row([
+                    ft.Container(content=ft.TextField(label="OpCo", value=opco, read_only=True, disabled=True), expand=True),
+                    ft.Container(content=ft.TextField(label="Device Type", value=device_type, read_only=True, disabled=True), expand=True),
+                ], spacing=16),
+                ft.Row([status_field, mfr_field], spacing=16, expand=True),
+                ft.Row([dev_code_field, beg_ser_field, end_ser_field], spacing=16, expand=True),
+                ft.Row([qty_field, po_date_field, po_number_field], spacing=16, expand=True),
+                ft.Row([recv_date_field, unit_cost_field, cid_field], spacing=16, expand=True),
+                ft.Row([me_number_field, pur_code_field, est_field, use_field], spacing=16, expand=True),
+                notes1_field,
+                notes2_field,
+            ],
+            spacing=12,
+            scroll=ft.ScrollMode.AUTO,
+        )
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Edit Record" if is_edit else "Add New Record"),
+            content=ft.Container(
+                content=form_content,
+                width=700,
+                height=500,
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.FilledButton("Save", on_click=save_record),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def delete_record(self, opco: str, device_type: str):
+        """Delete selected record"""
+        if not self.edit_mode:
+            self.show_snackbar("Edit mode is locked. Enable edit mode first.", is_error=True)
+            return
+        
+        sheet_name = f"{opco} - {device_type}"
+        grid = self.sheet_grids.get(sheet_name)
+        if not grid:
+            return
+        
+        row_data = grid.get_selected_data()
+        if not row_data:
+            self.show_snackbar("Please select a record to delete", is_error=True)
+            return
+        
+        item_id = row_data[0]
+        
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+        
+        def confirm_delete(e):
+            if self.db.delete_item(item_id):
+                self.show_snackbar("Record deleted successfully")
+                self.load_sheet_data(opco, device_type)
+                self.update_dashboard_metrics()
+            else:
+                self.show_snackbar("Failed to delete record", is_error=True)
+            
+            dialog.open = False
+            self.page.update()
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirm Delete"),
+            content=ft.Text("Are you sure you want to delete this record?"),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.FilledButton("Delete", on_click=confirm_delete, style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def toggle_filters(self, opco: str, device_type: str):
+        """Toggle filter sidebar visibility"""
+        sheet_name = f"{opco} - {device_type}"
+        self.sheet_filter_visible[sheet_name] = not self.sheet_filter_visible.get(sheet_name, False)
+        
+        # Rebuild the sheet view
+        self.show_sheet(sheet_name)
     
     def apply_filters(self, opco: str, device_type: str, filters: Dict):
         """Apply filters to grid"""
         sheet_name = f"{opco} - {device_type}"
-        view = self.sheet_views.get(sheet_name)
-        if not view:
+        grid = self.sheet_grids.get(sheet_name)
+        if not grid:
             return
         
         try:
@@ -627,14 +770,13 @@ class CreatedHistoriesApp(QMainWindow):
             
             if not conditions or not any(c.get('value') for c in conditions):
                 # No valid filters, show all data
-                view.grid.set_data(all_items)
+                grid.set_data(all_items)
                 return
             
             # Filter the data
             filtered_items = []
             
             for item in all_items:
-                # Check each condition
                 condition_results = []
                 
                 for condition in conditions:
@@ -692,516 +834,305 @@ class CreatedHistoriesApp(QMainWindow):
                             filtered_items.append(item)
             
             # Update grid with filtered data
-            view.grid.set_data(filtered_items)
+            grid.set_data(filtered_items)
             
         except Exception as e:
             print(f"Error applying filters: {e}")
-            # Fallback to showing all data
             self.load_sheet_data(opco, device_type)
-    
-    def show_dashboard(self):
-        """Show dashboard view"""
-        self.stack.setCurrentWidget(self.dashboard_view)
-        self.breadcrumb_label.setText("Dashboard")
-        self.subtitle_label.setText("Overview of all device histories")
-        self.current_sheet = None
-        self.update_dashboard_metrics()
-    
-    def show_sheet(self, sheet_name: str):
-        """Show specific sheet"""
-        view = self.sheet_views.get(sheet_name)
-        if view:
-            self.stack.setCurrentWidget(view)
-            self.breadcrumb_label.setText(sheet_name)
-            self.subtitle_label.setText(f"Manage {sheet_name} device records")
-            self.current_sheet = sheet_name
-            self.load_sheet_data(view.opco, view.device_type)
-    
-    def load_sheet_data(self, opco: str, device_type: str):
-        """Load data for sheet"""
-        try:
-            sheet_name = f"{opco} - {device_type}"
-            view = self.sheet_views.get(sheet_name)
-            if not view:
-                return
-            
-            items = self.db.get_items_by_sheet(opco, device_type)
-            view.grid.set_data(items)
-            
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Error loading data: {e}")
-    
-    def update_dashboard_metrics(self):
-        """Update dashboard metrics"""
-        try:
-            total_records = 0
-            total_qty = 0
-            total_value = 0.0
-            costs = []
-            
-            for opco, device_type in self.SHEETS:
-                stats = self.db.get_statistics(opco, device_type)
-                
-                total_records += stats.get('total_items', 0)
-                total_qty += stats.get('total_qty', 0)
-                total_value += stats.get('total_value', 0.0)
-                
-                avg_cost = stats.get('avg_cost', 0.0)
-                if avg_cost > 0:
-                    costs.append(avg_cost)
-                
-                # Update sheet card
-                sheet_name = f"{opco} - {device_type}"
-                card = self.sheet_stats_cards.get(sheet_name)
-                if card:
-                    card.update_stats({
-                        'Records': stats.get('total_items', 0),
-                        'Devices': stats.get('total_qty', 0),
-                        'Value': f"${stats.get('total_value', 0.0):,.2f}"
-                    })
-            
-            # Update metric cards
-            self.total_records_card.update_value(f"{total_records:,}")
-            self.total_devices_card.update_value(f"{total_qty:,}")
-            self.total_value_card.update_value(f"${total_value:,.2f}")
-            
-            avg_cost = sum(costs) / len(costs) if costs else 0
-            self.avg_cost_card.update_value(f"${avg_cost:,.2f}")
-            
-        except Exception as e:
-            print(f"Error updating metrics: {e}")
-    
-    def toggle_edit_mode(self):
-        """Toggle edit mode with password"""
-        if self.edit_mode:
-            self.edit_mode = False
-            self.mode_indicator.update_status('inactive', 'Read-Only')
-            self.toggle_mode_btn.setText("🔓 Enable Edit Mode")
-            QMessageBox.information(self, "Edit Mode", "Edit mode disabled")
-        else:
-            dialog = PasswordDialog(self)
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                password = dialog.get_password()
-                password_hash = hashlib.md5(password.encode()).hexdigest()
-                
-                if password_hash == self.MASTER_PASSWORD_HASH:
-                    self.edit_mode = True
-                    self.mode_indicator.update_status('success', 'Edit Mode')
-                    self.toggle_mode_btn.setText("🔒 Disable Edit Mode")
-                    QMessageBox.information(self, "Edit Mode", "Edit mode enabled!")
-                else:
-                    QMessageBox.warning(self, "Error", "Incorrect password")
-    
-    def toggle_sidebar(self):
-        """Toggle sidebar collapsed/expanded state with animation"""
-        if self.sidebar_collapsed:
-            self.expand_sidebar()
-        else:
-            self.collapse_sidebar()
-    
-    def _set_button_texts_collapsed(self):
-        """Set button texts to icon-only mode"""
-        self.dashboard_btn.setText("🏠")
-        for sheet_name, btn in self.sheet_buttons.items():
-            btn.setText("◆")
-    
-    def _set_button_texts_expanded(self):
-        """Restore button texts to full mode"""
-        self.dashboard_btn.setText("🏠 Dashboard")
-        for opco, device_type in self.SHEETS:
-            sheet_name = f"{opco} - {device_type}"
-            btn = self.sheet_buttons.get(sheet_name)
-            if btn:
-                btn.setText(f"📋 {sheet_name}")
-    
-    def _update_sidebar_visual_state(self, collapsed: bool, animate: bool = True):
-        """Update sidebar visual state (width, buttons, labels)"""
-        if animate:
-            # Stop any existing animations to prevent conflicts
-            if self.sidebar_animation is not None and self.sidebar_animation.state() == QPropertyAnimation.State.Running:
-                self.sidebar_animation.stop()
-            if self.sidebar_max_animation is not None and self.sidebar_max_animation.state() == QPropertyAnimation.State.Running:
-                self.sidebar_max_animation.stop()
-            
-            # Create or reuse animation objects
-            if self.sidebar_animation is None:
-                self.sidebar_animation = QPropertyAnimation(self.sidebar, b"minimumWidth")
-                self.sidebar_max_animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
-            
-            self.sidebar_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
-            self.sidebar_max_animation.setDuration(self.SIDEBAR_ANIMATION_DURATION)
-            
-            if collapsed:
-                self.sidebar_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
-                self.sidebar_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
-                self.sidebar_max_animation.setStartValue(self.SIDEBAR_EXPANDED_WIDTH)
-                self.sidebar_max_animation.setEndValue(self.SIDEBAR_COLLAPSED_WIDTH)
-            else:
-                self.sidebar_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
-                self.sidebar_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
-                self.sidebar_max_animation.setStartValue(self.SIDEBAR_COLLAPSED_WIDTH)
-                self.sidebar_max_animation.setEndValue(self.SIDEBAR_EXPANDED_WIDTH)
-            
-            self.sidebar_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-            self.sidebar_max_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
-            
-            # Disconnect any previous connections to avoid duplicates
-            try:
-                self.sidebar_animation.finished.disconnect()
-            except TypeError:
-                pass  # No previous connection
-            
-            # Update UI elements after animation completes
-            self.sidebar_animation.finished.connect(lambda: self._update_sidebar_ui_elements(collapsed))
-            
-            # Start animations
-            self.sidebar_animation.start()
-            self.sidebar_max_animation.start()
-        else:
-            # Set width immediately without animation
-            width = self.SIDEBAR_COLLAPSED_WIDTH if collapsed else self.SIDEBAR_EXPANDED_WIDTH
-            self.sidebar.setMinimumWidth(width)
-            self.sidebar.setMaximumWidth(width)
-            self._update_sidebar_ui_elements(collapsed)
-    
-    def _update_sidebar_ui_elements(self, collapsed: bool):
-        """Update button texts and labels based on collapsed state"""
-        # Update button texts and labels
-        if collapsed:
-            self._set_button_texts_collapsed()
-            self.sidebar_title.hide()
-            self.sheets_label.hide()
-            self.version_label.hide()
-        else:
-            self._set_button_texts_expanded()
-            self.sidebar_title.show()
-            self.sheets_label.show()
-            self.version_label.show()
-    
-    def collapse_sidebar(self):
-        """Collapse sidebar with animation"""
-        self._update_sidebar_visual_state(collapsed=True, animate=True)
-        self.sidebar_collapsed = True
-        self.save_sidebar_state()
-    
-    def expand_sidebar(self):
-        """Expand sidebar with animation"""
-        self._update_sidebar_visual_state(collapsed=False, animate=True)
-        self.sidebar_collapsed = False
-        self.save_sidebar_state()
-    
-    def save_sidebar_state(self):
-        """Save sidebar state to database"""
-        state = "collapsed" if self.sidebar_collapsed else "expanded"
-        # Batch both preferences in a single database transaction for performance
-        self.db.set_preferences_batch({
-            "sidebar_state": state,
-            "sidebar_manual_state": self.SIDEBAR_STATE_MANUAL
-        })
-        self.sidebar_manual_state_cache = self.SIDEBAR_STATE_MANUAL
-    
-    def load_sidebar_state(self):
-        """Load sidebar state from database"""
-        state = self.db.get_preference("sidebar_state", "expanded")
-        # Load and cache manual state
-        self.sidebar_manual_state_cache = self.db.get_preference("sidebar_manual_state", self.SIDEBAR_STATE_AUTO)
-        
-        if state == "collapsed":
-            # Set initial collapsed state without animation
-            self._update_sidebar_visual_state(collapsed=True, animate=False)
-            self.sidebar_collapsed = True
-    
-    def add_record(self, opco: str, device_type: str):
-        """Add new record"""
-        if not self.edit_mode:
-            QMessageBox.warning(self, "Error", "Edit mode is locked. Enable edit mode first.")
-            return
-        
-        dialog = ModernAddEditDialog(self, opco=opco, device_type=device_type)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            item = dialog.get_data()
-            item_id = self.db.insert_item(item)
-            
-            if item_id > 0:
-                QMessageBox.information(self, "Success", "Record added successfully")
-                self.load_sheet_data(opco, device_type)
-                self.update_dashboard_metrics()
-            else:
-                QMessageBox.warning(self, "Error", "Failed to add record")
-    
-    def edit_record(self, opco: str, device_type: str):
-        """Edit selected record"""
-        if not self.edit_mode:
-            QMessageBox.warning(self, "Error", "Edit mode is locked. Enable edit mode first.")
-            return
-        
-        sheet_name = f"{opco} - {device_type}"
-        view = self.sheet_views.get(sheet_name)
-        if not view:
-            return
-        
-        row_data = view.grid.get_selected_data()
-        if not row_data:
-            QMessageBox.warning(self, "Error", "Please select a record to edit")
-            return
-        
-        item_id = row_data[0]
-        item = self.db.get_item_by_id(item_id)
-        
-        if not item:
-            QMessageBox.warning(self, "Error", "Could not load record")
-            return
-        
-        dialog = ModernAddEditDialog(self, item=item, opco=opco, device_type=device_type)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            updated_item = dialog.get_data()
-            
-            if self.db.update_item(item_id, updated_item):
-                QMessageBox.information(self, "Success", "Record updated successfully")
-                self.load_sheet_data(opco, device_type)
-                self.update_dashboard_metrics()
-            else:
-                QMessageBox.warning(self, "Error", "Failed to update record")
-    
-    def delete_record(self, opco: str, device_type: str):
-        """Delete selected record"""
-        if not self.edit_mode:
-            QMessageBox.warning(self, "Error", "Edit mode is locked. Enable edit mode first.")
-            return
-        
-        sheet_name = f"{opco} - {device_type}"
-        view = self.sheet_views.get(sheet_name)
-        if not view:
-            return
-        
-        row_data = view.grid.get_selected_data()
-        if not row_data:
-            QMessageBox.warning(self, "Error", "Please select a record to delete")
-            return
-        
-        reply = QMessageBox.question(
-            self,
-            "Confirm Delete",
-            "Are you sure you want to delete this record?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            item_id = row_data[0]
-            
-            if self.db.delete_item(item_id):
-                QMessageBox.information(self, "Success", "Record deleted successfully")
-                self.load_sheet_data(opco, device_type)
-                self.update_dashboard_metrics()
-            else:
-                QMessageBox.warning(self, "Error", "Failed to delete record")
     
     def import_data(self, opco: str, device_type: str):
         """Import data from file"""
         if not self.edit_mode:
-            QMessageBox.warning(self, "Error", "Edit mode is locked. Enable edit mode first.")
+            self.show_snackbar("Edit mode is locked. Enable edit mode first.", is_error=True)
             return
         
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select File", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)"
-        )
-        
-        if not file_path:
-            return
-        
-        try:
-            imported_count = 0
+        def on_file_picked(e: ft.FilePickerResultEvent):
+            if not e.files:
+                return
             
-            if file_path.endswith('.xlsx'):
-                wb = openpyxl.load_workbook(file_path)
+            file_path = e.files[0].path
+            if not file_path:
+                return
+            
+            try:
+                imported_count = 0
                 
-                sheet_name = f"{'OH' if opco == 'Ohio' else 'I&M'} - {device_type}"
-                
-                if sheet_name in wb.sheetnames:
-                    ws = wb[sheet_name]
-                    
-                    for row in ws.iter_rows(min_row=2, values_only=True):
-                        if not any(row) or not row[0]:
-                            continue
+                if file_path.endswith('.xlsx'):
+                    try:
+                        import openpyxl
+                        wb = openpyxl.load_workbook(file_path)
                         
-                        if len(row) < 17:
-                            continue
+                        sheet_name = f"{'OH' if opco == 'Ohio' else 'I&M'} - {device_type}"
                         
-                        # Parse unit cost
-                        unit_cost = 0.0
-                        if len(row) > 11 and row[11]:
-                            try:
-                                cost_val = row[11]
-                                if isinstance(cost_val, str):
-                                    cost_str = cost_val.replace('$', '').replace(',', '')
-                                    unit_cost = float(cost_str)
-                                else:
-                                    unit_cost = float(cost_val)
-                            except (ValueError, TypeError):
+                        if sheet_name in wb.sheetnames:
+                            ws = wb[sheet_name]
+                            
+                            for row in ws.iter_rows(min_row=2, values_only=True):
+                                if not any(row) or not row[0]:
+                                    continue
+                                
+                                if len(row) < 17:
+                                    continue
+                                
+                                # Parse unit cost
                                 unit_cost = 0.0
-                        
-                        # Parse quantity
-                        qty = 0
-                        if len(row) > 7 and row[7]:
-                            try:
-                                qty = int(row[7])
-                            except (ValueError, TypeError):
+                                if len(row) > 11 and row[11]:
+                                    try:
+                                        cost_val = row[11]
+                                        if isinstance(cost_val, str):
+                                            cost_str = cost_val.replace('$', '').replace(',', '')
+                                            unit_cost = float(cost_str)
+                                        else:
+                                            unit_cost = float(cost_val)
+                                    except (ValueError, TypeError):
+                                        unit_cost = 0.0
+                                
+                                # Parse quantity
                                 qty = 0
-                        
-                        item = {
-                            'opco': opco,
-                            'device_type': device_type,
-                            'status': str(row[2]) if len(row) > 2 and row[2] else '',
-                            'mfr': str(row[3]) if len(row) > 3 and row[3] else '',
-                            'dev_code': str(row[4]) if len(row) > 4 and row[4] else '',
-                            'beg_ser': str(row[5]) if len(row) > 5 and row[5] else '',
-                            'end_ser': str(row[6]) if len(row) > 6 and row[6] else '',
-                            'qty': qty,
-                            'po_date': str(row[8]) if len(row) > 8 and row[8] else '',
-                            'po_number': str(row[9]) if len(row) > 9 and row[9] else '',
-                            'recv_date': str(row[10]) if len(row) > 10 and row[10] else '',
-                            'unit_cost': unit_cost,
-                            'cid': str(row[12]) if len(row) > 12 and row[12] else '',
-                            'me_number': str(row[13]) if len(row) > 13 and row[13] else '',
-                            'pur_code': str(row[14]) if len(row) > 14 and row[14] else '',
-                            'est': str(row[15]) if len(row) > 15 and row[15] else '',
-                            'use': str(row[16]) if len(row) > 16 and row[16] else '',
-                            'notes1': str(row[17]) if len(row) > 17 and row[17] else '',
-                            'notes2': str(row[18]) if len(row) > 18 and row[18] else '',
-                        }
-                        
-                        result = self.db.insert_item(item)
-                        if result > 0:
-                            imported_count += 1
-            
-            self.load_sheet_data(opco, device_type)
-            self.update_dashboard_metrics()
-            QMessageBox.information(self, "Import Complete", f"Imported {imported_count} records")
-            
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Error importing file: {e}")
-            import traceback
-            traceback.print_exc()
+                                if len(row) > 7 and row[7]:
+                                    try:
+                                        qty = int(row[7])
+                                    except (ValueError, TypeError):
+                                        qty = 0
+                                
+                                item = {
+                                    'opco': opco,
+                                    'device_type': device_type,
+                                    'status': str(row[2]) if len(row) > 2 and row[2] else '',
+                                    'mfr': str(row[3]) if len(row) > 3 and row[3] else '',
+                                    'dev_code': str(row[4]) if len(row) > 4 and row[4] else '',
+                                    'beg_ser': str(row[5]) if len(row) > 5 and row[5] else '',
+                                    'end_ser': str(row[6]) if len(row) > 6 and row[6] else '',
+                                    'qty': qty,
+                                    'po_date': str(row[8]) if len(row) > 8 and row[8] else '',
+                                    'po_number': str(row[9]) if len(row) > 9 and row[9] else '',
+                                    'recv_date': str(row[10]) if len(row) > 10 and row[10] else '',
+                                    'unit_cost': unit_cost,
+                                    'cid': str(row[12]) if len(row) > 12 and row[12] else '',
+                                    'me_number': str(row[13]) if len(row) > 13 and row[13] else '',
+                                    'pur_code': str(row[14]) if len(row) > 14 and row[14] else '',
+                                    'est': str(row[15]) if len(row) > 15 and row[15] else '',
+                                    'use': str(row[16]) if len(row) > 16 and row[16] else '',
+                                    'notes1': str(row[17]) if len(row) > 17 and row[17] else '',
+                                    'notes2': str(row[18]) if len(row) > 18 and row[18] else '',
+                                }
+                                
+                                result = self.db.insert_item(item)
+                                if result > 0:
+                                    imported_count += 1
+                    except ImportError:
+                        self.show_snackbar("openpyxl is required for Excel import", is_error=True)
+                        return
+                
+                self.load_sheet_data(opco, device_type)
+                self.update_dashboard_metrics()
+                self.show_snackbar(f"Imported {imported_count} records")
+                
+            except Exception as ex:
+                self.show_snackbar(f"Error importing file: {ex}", is_error=True)
+        
+        file_picker = ft.FilePicker(on_result=on_file_picked)
+        self.page.overlay.append(file_picker)
+        self.page.update()
+        file_picker.pick_files(
+            allowed_extensions=["xlsx", "csv"],
+            dialog_title="Select File to Import",
+        )
     
     def export_data(self, opco: str, device_type: str):
         """Export data to CSV"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export CSV", f"{opco}_{device_type}.csv", "CSV Files (*.csv)"
+        def on_file_picked(e: ft.FilePickerResultEvent):
+            if not e.path:
+                return
+            
+            file_path = e.path
+            if not file_path.endswith('.csv'):
+                file_path += '.csv'
+            
+            try:
+                items = self.db.get_items_by_sheet(opco, device_type)
+                
+                with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(self.COLUMNS)
+                    writer.writerows(items)
+                
+                self.show_snackbar(f"Exported {len(items)} records to {file_path}")
+                
+            except Exception as ex:
+                self.show_snackbar(f"Error exporting: {ex}", is_error=True)
+        
+        file_picker = ft.FilePicker(on_result=on_file_picked)
+        self.page.overlay.append(file_picker)
+        self.page.update()
+        file_picker.save_file(
+            file_name=f"{opco}_{device_type}.csv",
+            dialog_title="Export CSV",
         )
-        
-        if not file_path:
-            return
-        
-        try:
-            items = self.db.get_items_by_sheet(opco, device_type)
-            
-            with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(self.COLUMNS)
-                writer.writerows(items)
-            
-            QMessageBox.information(self, "Export Complete", f"Exported {len(items)} records")
-            
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Error exporting: {e}")
     
     def show_statistics(self, opco: str, device_type: str):
-        """Show statistics"""
+        """Show statistics dialog"""
         try:
             stats = self.db.get_statistics(opco, device_type)
             
-            msg = (
-                f"Statistics for {opco} - {device_type}\n"
-                f"{'='*50}\n\n"
-                f"Total Records: {stats['total_items']}\n"
-                f"Total Quantity: {stats['total_qty']:,}\n"
-                f"Total Value: ${stats['total_value']:,.2f}\n"
-                f"Average Cost per Unit: ${stats['avg_cost']:,.2f}\n"
+            stats_content = ft.Column(
+                controls=[
+                    ft.Row([
+                        ft.Text("Total Records:", weight=ft.FontWeight.W_500),
+                        ft.Container(expand=True),
+                        ft.Text(f"{stats['total_items']:,}"),
+                    ]),
+                    ft.Row([
+                        ft.Text("Total Quantity:", weight=ft.FontWeight.W_500),
+                        ft.Container(expand=True),
+                        ft.Text(f"{stats['total_qty']:,}"),
+                    ]),
+                    ft.Row([
+                        ft.Text("Total Value:", weight=ft.FontWeight.W_500),
+                        ft.Container(expand=True),
+                        ft.Text(f"${stats['total_value']:,.2f}"),
+                    ]),
+                    ft.Row([
+                        ft.Text("Average Cost per Unit:", weight=ft.FontWeight.W_500),
+                        ft.Container(expand=True),
+                        ft.Text(f"${stats['avg_cost']:,.2f}"),
+                    ]),
+                ],
+                spacing=12,
             )
             
-            QMessageBox.information(self, "Statistics", msg)
+            def close_dialog(e):
+                dialog.open = False
+                self.page.update()
+            
+            dialog = ft.AlertDialog(
+                title=ft.Text(f"Statistics - {opco} {device_type}"),
+                content=ft.Container(
+                    content=stats_content,
+                    width=350,
+                ),
+                actions=[
+                    ft.TextButton("Close", on_click=close_dialog),
+                ],
+            )
+            
+            self.page.overlay.append(dialog)
+            dialog.open = True
+            self.page.update()
             
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"Error getting statistics: {e}")
+            self.show_snackbar(f"Error getting statistics: {e}", is_error=True)
     
-    def create_menu_bar(self):
-        """Create menu bar"""
-        menubar = self.menuBar()
+    def toggle_theme(self, e):
+        """Toggle between light and dark theme"""
+        if self.page.theme_mode == ft.ThemeMode.LIGHT:
+            self.page.theme_mode = ft.ThemeMode.DARK
+            self.current_theme = "Dark"
+            if hasattr(e.control, 'icon'):
+                e.control.icon = ft.Icons.DARK_MODE
+        else:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+            self.current_theme = "Light"
+            if hasattr(e.control, 'icon'):
+                e.control.icon = ft.Icons.LIGHT_MODE
         
-        file_menu = menubar.addMenu('File')
-        file_menu.addAction('Exit', self.close)
-        
-        edit_menu = menubar.addMenu('Edit')
-        edit_menu.addAction('Toggle Edit Mode', self.toggle_edit_mode)
-        
-        view_menu = menubar.addMenu('View')
-        view_menu.addAction('Dashboard', self.show_dashboard)
-        view_menu.addSeparator()
-        view_menu.addAction('Light Theme', lambda: self.apply_theme("Light"))
-        view_menu.addAction('Dark Theme', lambda: self.apply_theme("Dark"))
-        
-        help_menu = menubar.addMenu('Help')
-        help_menu.addAction('About', self.show_about)
+        self.page.update()
     
-    def apply_theme(self, theme: str):
-        """Apply theme"""
-        self.current_theme = theme
-        stylesheet = ThemeManager.get_stylesheet(theme)
-        self.setStyleSheet(stylesheet)
+    def load_sidebar_state(self):
+        """Load sidebar state from database"""
+        try:
+            state = self.db.get_preference("sidebar_state", "expanded")
+            # Note: Flet NavigationRail doesn't support collapsing the same way PyQt does
+            # We could implement extended mode toggling if needed
+        except Exception:
+            pass
     
-    def show_about(self):
+    def show_about(self, e):
         """Show about dialog"""
-        msg = (
-            "Created Histories v2.0.0\n\n"
-            "Modern Professional Device History Tracking System\n\n"
-            "Features:\n"
-            "• Modern dashboard with real-time metrics\n"
-            "• Multi-sheet support with advanced filtering\n"
-            "• Professional form builder with validation\n"
-            "• Enhanced data grid with sorting\n"
-            "• Import/Export functionality\n"
-            "• Password-protected edit mode\n"
-            "• Collapsible sidebar (Alt+S) with state persistence\n"
-            "• Responsive auto-collapse on small screens\n"
-            "• WCAG 2.1 AA accessibility compliant\n"
-            "• Light/Dark theme support\n\n"
-            "Created with PyQt6"
+        about_content = ft.Column(
+            controls=[
+                ft.Text("Created Histories v2.0.0 (Flet)", weight=ft.FontWeight.BOLD, size=16),
+                ft.Container(height=12),
+                ft.Text("Modern Professional Device History Tracking System", size=14),
+                ft.Container(height=12),
+                ft.Text("Features:", weight=ft.FontWeight.W_600),
+                ft.Text("• Modern dashboard with real-time metrics"),
+                ft.Text("• Multi-sheet support with advanced filtering"),
+                ft.Text("• CRUD operations with password protection"),
+                ft.Text("• Import/Export functionality"),
+                ft.Text("• Light/Dark theme support"),
+                ft.Container(height=12),
+                ft.Text("Built with Flet (Flutter for Python)", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+            ],
+            spacing=2,
         )
-        QMessageBox.information(self, "About", msg)
+        
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("About"),
+            content=ft.Container(content=about_content, width=400),
+            actions=[ft.TextButton("Close", on_click=close_dialog)],
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
     
-    def resizeEvent(self, event):
-        """Handle window resize for responsive behavior"""
-        super().resizeEvent(event)
+    def show_help(self, e):
+        """Show help dialog"""
+        help_content = ft.Column(
+            controls=[
+                ft.Text("How to Use:", weight=ft.FontWeight.W_600, size=16),
+                ft.Container(height=8),
+                ft.Text("1. Navigate using the rail on the left"),
+                ft.Text("2. Click 'Enable Edit Mode' and enter password to edit"),
+                ft.Text("3. Use toolbar buttons to add, edit, or delete records"),
+                ft.Text("4. Use Filters to search and filter data"),
+                ft.Text("5. Import Excel files or export to CSV"),
+                ft.Container(height=12),
+                ft.Text("Default Password: admin123", weight=ft.FontWeight.W_500),
+            ],
+            spacing=4,
+        )
         
-        # Only handle responsive behavior if in auto mode (not manually set)
-        if self.sidebar_manual_state_cache == self.SIDEBAR_STATE_MANUAL:
-            return
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
         
-        # Check if we've crossed the responsive breakpoint threshold
-        window_width = event.size().width()
-        is_below_breakpoint = window_width < self.RESPONSIVE_BREAKPOINT_WIDTH
+        dialog = ft.AlertDialog(
+            title=ft.Text("Help"),
+            content=ft.Container(content=help_content, width=400),
+            actions=[ft.TextButton("Close", on_click=close_dialog)],
+        )
         
-        # Only trigger if crossing the threshold (prevents repeated triggers)
-        if self.last_responsive_width_state != is_below_breakpoint:
-            self.last_responsive_width_state = is_below_breakpoint
-            
-            if is_below_breakpoint:
-                # Auto-collapse if not already collapsed
-                if not self.sidebar_collapsed:
-                    self.collapse_sidebar()
-            else:
-                # Auto-expand if window is wide enough
-                if self.sidebar_collapsed:
-                    self.expand_sidebar()
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def show_snackbar(self, message: str, is_error: bool = False):
+        """Show a snackbar notification"""
+        snackbar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=ft.Colors.ERROR if is_error else None,
+            action="OK",
+        )
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()
 
 
-def main():
-    """Main entry point"""
-    app = QApplication(sys.argv)
-    window = CreatedHistoriesApp()
-    window.show()
-    sys.exit(app.exec())
+def main(page: ft.Page):
+    """Main application entry point"""
+    print("\n" + "=" * 60)
+    print("Created Histories Module (Flet)")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60 + "\n")
+    
+    CreatedHistoriesApp(page)
 
 
 if __name__ == '__main__':
-    main()
+    ft.app(target=main)

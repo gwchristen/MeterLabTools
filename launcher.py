@@ -538,13 +538,19 @@ class MeterLabToolsLauncher:
     def launch_created_histories(self):
         """Launch the Created Histories module"""
         try:
-            # For now, show a placeholder since the module is PyQt6-based
-            # In a full conversion, this module would also need to be converted to Flet
-            self.show_snackbar("Created Histories module launching...")
-            print("Created Histories module launched successfully")
+            import subprocess
+            import sys
+            import os
             
-            # Note: The actual module launch would require converting the module to Flet
-            # or running it as a separate process
+            # Get the path to the module
+            module_path = os.path.join(os.path.dirname(__file__), 'modules', 'module_2', 'app.py')
+            
+            # Launch the module in a separate process
+            self.show_snackbar("Launching Created Histories module...")
+            subprocess.Popen([sys.executable, module_path], 
+                           stdout=subprocess.DEVNULL, 
+                           stderr=subprocess.DEVNULL)
+            print("Created Histories module launched successfully")
             
         except Exception as e:
             error_msg = f"Error launching Created Histories: {e}"
