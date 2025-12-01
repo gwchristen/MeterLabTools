@@ -556,8 +556,8 @@ class MeterLabToolsLauncher:
             subprocess.Popen(
                 [sys.executable, module_path],
                 cwd=module_dir,  # Set working directory to module folder
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             print(f"Created Histories module launched from: {module_dir}")
             
