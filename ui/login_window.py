@@ -20,17 +20,17 @@ class LoginWindow:
         self.on_cancel = on_cancel
         self.dialog: Optional[ft.AlertDialog] = None
         
-        # Input fields
-        self.username_field = ft.TextField(
-            label="Username",
-            autofocus=True,
-            on_submit=lambda e: self.password_field.focus(),
-        )
+        # Input fields - initialize password_field first since username_field references it
         self.password_field = ft.TextField(
             label="Password",
             password=True,
             can_reveal_password=True,
             on_submit=lambda e: self.handle_login(e),
+        )
+        self.username_field = ft.TextField(
+            label="Username",
+            autofocus=True,
+            on_submit=lambda e: self.password_field.focus(),
         )
         self.error_text = ft.Text(
             "",

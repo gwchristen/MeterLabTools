@@ -557,10 +557,14 @@ class MeterLabToolsLauncher:
         """Toggle between light and dark theme"""
         if self.page.theme_mode == ft.ThemeMode.LIGHT:
             self.page.theme_mode = ft.ThemeMode.DARK
-            e.control.icon = ft.Icons.DARK_MODE
+            # Update button icon if it's an IconButton
+            if hasattr(e.control, 'icon'):
+                e.control.icon = ft.Icons.DARK_MODE
         else:
             self.page.theme_mode = ft.ThemeMode.LIGHT
-            e.control.icon = ft.Icons.LIGHT_MODE
+            # Update button icon if it's an IconButton
+            if hasattr(e.control, 'icon'):
+                e.control.icon = ft.Icons.LIGHT_MODE
         
         self.page.update()
         print(f"Theme switched to: {self.page.theme_mode}")
