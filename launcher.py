@@ -542,15 +542,24 @@ class MeterLabToolsLauncher:
             import sys
             import os
             
-            # Get the path to the module
-            module_path = os.path.join(os.path.dirname(__file__), 'modules', 'module_2', 'app.py')
+            # Get the path to the module directory and app file
+            module_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'modules', 'module_2')
+            module_path = os.path.join(module_dir, 'app.py')
             
-            # Launch the module in a separate process
+            # Verify the module exists
+            if not os.path.exists(module_path):
+                self.show_snackbar(f"Module not found: {module_path}", is_error=True)
+                return
+            
+            # Launch the module in a separate process with correct working directory
             self.show_snackbar("Launching Created Histories module...")
-            subprocess.Popen([sys.executable, module_path], 
-                           stdout=subprocess.DEVNULL, 
-                           stderr=subprocess.DEVNULL)
-            print("Created Histories module launched successfully")
+            subprocess.Popen(
+                [sys.executable, module_path],
+                cwd=module_dir,  # Set working directory to module folder
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            print(f"Created Histories module launched from: {module_dir}")
             
         except Exception as e:
             error_msg = f"Error launching Created Histories: {e}"
