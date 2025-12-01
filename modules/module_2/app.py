@@ -411,6 +411,7 @@ class CreatedHistoriesApp:
         
         if self.content_area:
             self.content_area.content = self.create_dashboard_view()
+            self.content_area.update()
         
         self.page.update()
     
@@ -436,6 +437,7 @@ class CreatedHistoriesApp:
         
         if self.content_area:
             self.content_area.content = self.create_sheet_view(opco, device_type)
+            self.content_area.update()
         
         self.page.update()
     
