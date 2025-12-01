@@ -6,6 +6,7 @@ Device History Management with dashboard, advanced filtering, and professional d
 import flet as ft
 import csv
 import hashlib
+import logging
 import os
 import sys
 from datetime import datetime
@@ -14,6 +15,13 @@ from typing import Dict, List, Any, Optional
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Optional: openpyxl for Excel import
+try:
+    import openpyxl
+    HAS_OPENPYXL = True
+except ImportError:
+    HAS_OPENPYXL = False
+
 from inventory_db import InventoryDatabase
 from ui_components.theme_flet import ThemeManager, get_status_colors
 from ui_components.dashboard_cards_flet import MetricCard, StatisticsCard
@@ -21,6 +29,10 @@ from ui_components.enhanced_grid_flet import EnhancedDataGrid
 from ui_components.filter_sidebar_flet import FilterSidebar
 from ui_components.form_builder_flet import FormBuilder
 from ui_components.status_indicators_flet import StatusIndicator
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 class CreatedHistoriesApp:
@@ -90,7 +102,7 @@ class CreatedHistoriesApp:
         # Load sidebar state
         self.load_sidebar_state()
         
-        print("Created Histories App initialized!")
+        logger.info("Created Histories App initialized!")
     
     def setup_page(self):
         """Configure page settings"""
@@ -483,7 +495,7 @@ class CreatedHistoriesApp:
                 self.avg_cost_card.update_value(f"${avg_cost:,.2f}")
             
         except Exception as e:
-            print(f"Error updating metrics: {e}")
+            logger.error(f"Error updating metrics: {e}")
     
     def toggle_edit_mode(self, e):
         """Toggle edit mode with password"""
@@ -837,7 +849,7 @@ class CreatedHistoriesApp:
             grid.set_data(filtered_items)
             
         except Exception as e:
-            print(f"Error applying filters: {e}")
+            logger.error(f"Error applying filters: {e}")
             self.load_sheet_data(opco, device_type)
     
     def import_data(self, opco: str, device_type: str):
@@ -858,77 +870,77 @@ class CreatedHistoriesApp:
                 imported_count = 0
                 
                 if file_path.endswith('.xlsx'):
-                    try:
-                        import openpyxl
-                        wb = openpyxl.load_workbook(file_path)
-                        
-                        sheet_name = f"{'OH' if opco == 'Ohio' else 'I&M'} - {device_type}"
-                        
-                        if sheet_name in wb.sheetnames:
-                            ws = wb[sheet_name]
-                            
-                            for row in ws.iter_rows(min_row=2, values_only=True):
-                                if not any(row) or not row[0]:
-                                    continue
-                                
-                                if len(row) < 17:
-                                    continue
-                                
-                                # Parse unit cost
-                                unit_cost = 0.0
-                                if len(row) > 11 and row[11]:
-                                    try:
-                                        cost_val = row[11]
-                                        if isinstance(cost_val, str):
-                                            cost_str = cost_val.replace('$', '').replace(',', '')
-                                            unit_cost = float(cost_str)
-                                        else:
-                                            unit_cost = float(cost_val)
-                                    except (ValueError, TypeError):
-                                        unit_cost = 0.0
-                                
-                                # Parse quantity
-                                qty = 0
-                                if len(row) > 7 and row[7]:
-                                    try:
-                                        qty = int(row[7])
-                                    except (ValueError, TypeError):
-                                        qty = 0
-                                
-                                item = {
-                                    'opco': opco,
-                                    'device_type': device_type,
-                                    'status': str(row[2]) if len(row) > 2 and row[2] else '',
-                                    'mfr': str(row[3]) if len(row) > 3 and row[3] else '',
-                                    'dev_code': str(row[4]) if len(row) > 4 and row[4] else '',
-                                    'beg_ser': str(row[5]) if len(row) > 5 and row[5] else '',
-                                    'end_ser': str(row[6]) if len(row) > 6 and row[6] else '',
-                                    'qty': qty,
-                                    'po_date': str(row[8]) if len(row) > 8 and row[8] else '',
-                                    'po_number': str(row[9]) if len(row) > 9 and row[9] else '',
-                                    'recv_date': str(row[10]) if len(row) > 10 and row[10] else '',
-                                    'unit_cost': unit_cost,
-                                    'cid': str(row[12]) if len(row) > 12 and row[12] else '',
-                                    'me_number': str(row[13]) if len(row) > 13 and row[13] else '',
-                                    'pur_code': str(row[14]) if len(row) > 14 and row[14] else '',
-                                    'est': str(row[15]) if len(row) > 15 and row[15] else '',
-                                    'use': str(row[16]) if len(row) > 16 and row[16] else '',
-                                    'notes1': str(row[17]) if len(row) > 17 and row[17] else '',
-                                    'notes2': str(row[18]) if len(row) > 18 and row[18] else '',
-                                }
-                                
-                                result = self.db.insert_item(item)
-                                if result > 0:
-                                    imported_count += 1
-                    except ImportError:
+                    if not HAS_OPENPYXL:
                         self.show_snackbar("openpyxl is required for Excel import", is_error=True)
                         return
+                    
+                    wb = openpyxl.load_workbook(file_path)
+                    
+                    sheet_name = f"{'OH' if opco == 'Ohio' else 'I&M'} - {device_type}"
+                    
+                    if sheet_name in wb.sheetnames:
+                        ws = wb[sheet_name]
+                        
+                        for row in ws.iter_rows(min_row=2, values_only=True):
+                            if not any(row) or not row[0]:
+                                continue
+                            
+                            if len(row) < 17:
+                                continue
+                            
+                            # Parse unit cost
+                            unit_cost = 0.0
+                            if len(row) > 11 and row[11]:
+                                try:
+                                    cost_val = row[11]
+                                    if isinstance(cost_val, str):
+                                        cost_str = cost_val.replace('$', '').replace(',', '')
+                                        unit_cost = float(cost_str)
+                                    else:
+                                        unit_cost = float(cost_val)
+                                except (ValueError, TypeError):
+                                    unit_cost = 0.0
+                            
+                            # Parse quantity
+                            qty = 0
+                            if len(row) > 7 and row[7]:
+                                try:
+                                    qty = int(row[7])
+                                except (ValueError, TypeError):
+                                    qty = 0
+                            
+                            item = {
+                                'opco': opco,
+                                'device_type': device_type,
+                                'status': str(row[2]) if len(row) > 2 and row[2] else '',
+                                'mfr': str(row[3]) if len(row) > 3 and row[3] else '',
+                                'dev_code': str(row[4]) if len(row) > 4 and row[4] else '',
+                                'beg_ser': str(row[5]) if len(row) > 5 and row[5] else '',
+                                'end_ser': str(row[6]) if len(row) > 6 and row[6] else '',
+                                'qty': qty,
+                                'po_date': str(row[8]) if len(row) > 8 and row[8] else '',
+                                'po_number': str(row[9]) if len(row) > 9 and row[9] else '',
+                                'recv_date': str(row[10]) if len(row) > 10 and row[10] else '',
+                                'unit_cost': unit_cost,
+                                'cid': str(row[12]) if len(row) > 12 and row[12] else '',
+                                'me_number': str(row[13]) if len(row) > 13 and row[13] else '',
+                                'pur_code': str(row[14]) if len(row) > 14 and row[14] else '',
+                                'est': str(row[15]) if len(row) > 15 and row[15] else '',
+                                'use': str(row[16]) if len(row) > 16 and row[16] else '',
+                                'notes1': str(row[17]) if len(row) > 17 and row[17] else '',
+                                'notes2': str(row[18]) if len(row) > 18 and row[18] else '',
+                            }
+                            
+                            result = self.db.insert_item(item)
+                            if result > 0:
+                                imported_count += 1
                 
                 self.load_sheet_data(opco, device_type)
                 self.update_dashboard_metrics()
                 self.show_snackbar(f"Imported {imported_count} records")
                 
             except Exception as ex:
+                logger.error(f"Error importing file: {ex}")
                 self.show_snackbar(f"Error importing file: {ex}", is_error=True)
         
         file_picker = ft.FilePicker(on_result=on_file_picked)
@@ -1126,10 +1138,10 @@ class CreatedHistoriesApp:
 
 def main(page: ft.Page):
     """Main application entry point"""
-    print("\n" + "=" * 60)
-    print("Created Histories Module (Flet)")
-    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60 + "\n")
+    logger.info("=" * 60)
+    logger.info("Created Histories Module (Flet)")
+    logger.info(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("=" * 60)
     
     CreatedHistoriesApp(page)
 

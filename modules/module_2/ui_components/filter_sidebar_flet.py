@@ -5,6 +5,9 @@ Filter Sidebar for Flet - Advanced filtering with AND/OR logic
 import flet as ft
 from typing import List, Dict, Any, Optional, Callable
 
+# Minimum number of filter conditions to keep
+MIN_CONDITIONS = 1
+
 
 class FilterCondition(ft.Container):
     """Single filter condition widget"""
@@ -161,7 +164,7 @@ class FilterBuilder(ft.Column):
     
     def remove_condition(self, condition: FilterCondition):
         """Remove a filter condition"""
-        if len(self.conditions) > 1:  # Keep at least one condition
+        if len(self.conditions) > MIN_CONDITIONS:
             self.conditions.remove(condition)
             if condition in self.conditions_column.controls:
                 self.conditions_column.controls.remove(condition)
@@ -182,13 +185,13 @@ class FilterBuilder(ft.Column):
     
     def clear_filters(self):
         """Clear all conditions"""
-        # Remove all conditions except the first
-        while len(self.conditions) > 1:
+        # Remove all conditions except the minimum required
+        while len(self.conditions) > MIN_CONDITIONS:
             condition = self.conditions.pop()
             if condition in self.conditions_column.controls:
                 self.conditions_column.controls.remove(condition)
         
-        # Clear the first condition's value
+        # Clear the remaining condition's value
         if self.conditions:
             self.conditions[0].value_input.value = ""
         
