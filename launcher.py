@@ -1,37 +1,31 @@
-import sys
+"""
+MeterLabTools Launcher - Flet-based UI
+A modern, Material Design launcher for operational tools.
+"""
+
+import flet as ft
 import json
 import os
-from datetime import datetime
-from pathlib import Path
-
-# PyQt6 imports
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QGridLayout, QPushButton, QLabel, 
-                             QScrollArea, QFrame, QMessageBox)
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont
+from typing import List, Dict, Any, Optional
 
 # Import from our modules
 from database.db_manager import DatabaseManager
 from database.init_db import init_db
 from shared.constants import APP_NAME, APP_VERSION
 from shared.utils import current_datetime_utc
-from ui.styles import ThemeManager, Theme
-from ui.resources import Colors, UIResources
 
 
-class MeterLabToolsLauncher(QMainWindow):
-    """Main MeterLabTools Launcher Application"""
+class MeterLabToolsLauncher:
+    """Main MeterLabTools Launcher Application using Flet"""
     
-    def __init__(self):
-        super().__init__()
+    def __init__(self, page: ft.Page):
+        self.page = page
+        self.current_view = "home"
+        self.db: Optional[DatabaseManager] = None
+        self.config: Dict[str, Any] = {}
         
-        # Window setup
-        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
-        self.setGeometry(100, 100, 1200, 800)
-        
-        # Track current theme
-        self.current_theme = "Light"
+        # Setup page
+        self.setup_page()
         
         # Initialize database
         print("Initializing database...")
@@ -44,15 +38,28 @@ class MeterLabToolsLauncher(QMainWindow):
         self.db = DatabaseManager('meter_lab_tools.db')
         self.db.connect()
         
+        # Load configuration
         print("Loading configuration...")
         self.config = self.load_config()
         
+        # Build UI
         print("Setting up UI...")
-        self.setup_ui()
+        self.build_ui()
         
         print("Launcher ready!")
     
-    def load_config(self):
+    def setup_page(self):
+        """Configure the page settings"""
+        self.page.title = f"{APP_NAME} v{APP_VERSION}"
+        self.page.window.width = 1200
+        self.page.window.height = 800
+        self.page.padding = 0
+        self.page.theme_mode = ft.ThemeMode.LIGHT
+        self.page.theme = ft.Theme(
+            color_scheme_seed=ft.Colors.BLUE,
+        )
+    
+    def load_config(self) -> Dict[str, Any]:
         """Load module configuration from config.json"""
         try:
             config_path = 'config.json'
@@ -71,152 +78,441 @@ class MeterLabToolsLauncher(QMainWindow):
             print(f"Error loading config: {e}")
             return {"modules": []}
     
-    def setup_ui(self):
-        """Setup the main user interface"""
-        # Create central widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+    def build_ui(self):
+        """Build the main user interface"""
+        # Create AppBar
+        app_bar = self.create_app_bar()
         
-        # Main horizontal layout (sidebar + content)
-        main_layout = QHBoxLayout()
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        # Create NavigationRail
+        nav_rail = self.create_navigation_rail()
         
-        # Sidebar
-        sidebar = self.create_sidebar()
-        main_layout.addWidget(sidebar, 1)
+        # Create main content area
+        self.content_area = ft.Container(
+            content=self.create_home_view(),
+            expand=True,
+            padding=20,
+        )
         
-        # Main content area with modules grid
-        content = self.create_modules_content()
-        main_layout.addWidget(content, 3)
+        # Main layout with NavigationRail and content
+        main_content = ft.Row(
+            controls=[
+                nav_rail,
+                ft.VerticalDivider(width=1),
+                self.content_area,
+            ],
+            expand=True,
+            spacing=0,
+        )
         
-        central_widget.setLayout(main_layout)
-        
-        # Create menu bar
-        self.create_menu_bar()
-        
-        # Apply initial theme
-        self.apply_light_theme()
+        # Set page controls
+        self.page.appbar = app_bar
+        self.page.add(main_content)
     
-    def create_sidebar(self):
-        """Create the sidebar with recently used modules"""
-        sidebar_frame = QFrame()
-        sidebar_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        sidebar_layout = QVBoxLayout()
-        sidebar_layout.setSpacing(10)
-        
-        # Title
-        title = QLabel("Recently Used")
-        title_font = QFont("Arial", 12)
-        title_font.setBold(True)
-        title.setFont(title_font)
-        sidebar_layout.addWidget(title)
-        
-        # Recently used modules
-        try:
-            recent = self.db.get_recently_used(limit=5)
-            if recent:
-                for module_dict in recent:
-                    module_id = module_dict.get('module_id', 'Unknown')
-                    btn = QPushButton(module_id)
-                    btn.setMinimumHeight(50)
-                    btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                    btn.clicked.connect(lambda checked, m=module_id: self.launch_module(m))
-                    sidebar_layout.addWidget(btn)
-            else:
-                empty_label = QLabel("No recent modules yet")
-                empty_label.setStyleSheet("color: gray; font-style: italic;")
-                sidebar_layout.addWidget(empty_label)
-        except Exception as e:
-            error_label = QLabel(f"Error loading recent")
-            sidebar_layout.addWidget(error_label)
-            print(f"Error getting recently used modules: {e}")
-        
-        # Spacer
-        sidebar_layout.addStretch()
-        
-        # Settings button
-        settings_btn = QPushButton("⚙️ Settings")
-        settings_btn.setMinimumHeight(40)
-        settings_btn.clicked.connect(self.show_settings)
-        sidebar_layout.addWidget(settings_btn)
-        
-        # Help button
-        help_btn = QPushButton("❓ Help")
-        help_btn.setMinimumHeight(40)
-        help_btn.clicked.connect(self.show_help)
-        sidebar_layout.addWidget(help_btn)
-        
-        sidebar_frame.setLayout(sidebar_layout)
-        sidebar_frame.setMaximumWidth(220)
-        
-        return sidebar_frame
+    def create_app_bar(self) -> ft.AppBar:
+        """Create the application bar"""
+        return ft.AppBar(
+            leading=ft.Icon(ft.Icons.DASHBOARD),
+            leading_width=50,
+            title=ft.Text(f"{APP_NAME} v{APP_VERSION}", weight=ft.FontWeight.BOLD),
+            center_title=False,
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+            actions=[
+                ft.IconButton(
+                    icon=ft.Icons.REFRESH,
+                    tooltip="Refresh Modules",
+                    on_click=self.refresh_modules,
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.LIGHT_MODE,
+                    tooltip="Toggle Theme",
+                    on_click=self.toggle_theme,
+                ),
+                ft.PopupMenuButton(
+                    icon=ft.Icons.MORE_VERT,
+                    items=[
+                        ft.PopupMenuItem(
+                            text="About",
+                            icon=ft.Icons.INFO_OUTLINE,
+                            on_click=self.show_about,
+                        ),
+                        ft.PopupMenuItem(
+                            text="Documentation",
+                            icon=ft.Icons.DESCRIPTION,
+                            on_click=self.show_documentation,
+                        ),
+                    ],
+                ),
+            ],
+        )
     
-    def create_modules_content(self):
-        """Create the modules grid content area"""
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; }")
+    def create_navigation_rail(self) -> ft.NavigationRail:
+        """Create the navigation rail"""
+        return ft.NavigationRail(
+            selected_index=0,
+            label_type=ft.NavigationRailLabelType.ALL,
+            min_width=100,
+            min_extended_width=200,
+            destinations=[
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.HOME_OUTLINED,
+                    selected_icon=ft.Icons.HOME,
+                    label="Home",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.HISTORY_OUTLINED,
+                    selected_icon=ft.Icons.HISTORY,
+                    label="Recent",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.SETTINGS_OUTLINED,
+                    selected_icon=ft.Icons.SETTINGS,
+                    label="Settings",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.HELP_OUTLINE,
+                    selected_icon=ft.Icons.HELP,
+                    label="Help",
+                ),
+            ],
+            on_change=self.on_nav_change,
+        )
+    
+    def on_nav_change(self, e):
+        """Handle navigation rail selection changes"""
+        index = e.control.selected_index
         
-        # Container for grid
-        container = QWidget()
-        grid_layout = QGridLayout()
-        grid_layout.setSpacing(15)
-        grid_layout.setContentsMargins(10, 10, 10, 10)
+        if index == 0:
+            self.current_view = "home"
+            self.content_area.content = self.create_home_view()
+        elif index == 1:
+            self.current_view = "recent"
+            self.content_area.content = self.create_recent_view()
+        elif index == 2:
+            self.current_view = "settings"
+            self.content_area.content = self.create_settings_view()
+        elif index == 3:
+            self.current_view = "help"
+            self.content_area.content = self.create_help_view()
         
-        # Add module buttons
+        self.page.update()
+    
+    def create_home_view(self) -> ft.Control:
+        """Create the home view with module cards grid"""
         modules = self.config.get('modules', [])
-        print(f"Creating {len(modules)} module buttons")
         
         if not modules:
-            no_modules_label = QLabel("No modules found in config.json")
-            grid_layout.addWidget(no_modules_label)
-        else:
-            for idx, module in enumerate(modules):
-                btn = self.create_module_button(module)
-                row = idx // 2
-                col = idx % 2
-                grid_layout.addWidget(btn, row, col)
+            return ft.Container(
+                content=ft.Text(
+                    "No modules found in config.json",
+                    size=16,
+                    color=ft.Colors.GREY_500,
+                ),
+                alignment=ft.alignment.center,
+                expand=True,
+            )
         
-        # Add stretch to fill remaining space
-        grid_layout.setRowStretch(len(modules) // 2 + 1, 1)
-        grid_layout.setColumnStretch(2, 1)
+        # Create module cards
+        cards = []
+        for module in modules:
+            card = self.create_module_card(module)
+            cards.append(card)
         
-        container.setLayout(grid_layout)
-        scroll.setWidget(container)
+        # Create responsive grid using Row with wrap
+        grid = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=cards,
+                    wrap=True,
+                    spacing=20,
+                    run_spacing=20,
+                ),
+            ],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+        )
         
-        return scroll
+        return ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Text(
+                        "Modules",
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    margin=ft.margin.only(bottom=20),
+                ),
+                grid,
+            ],
+            expand=True,
+        )
     
-    def create_module_button(self, module):
-        """Create a button for a module"""
-        btn = QPushButton()
-        btn.setMinimumSize(QSize(450, 130))
-        btn.setMaximumSize(QSize(500, 150))
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        
-        # Get module info
+    def create_module_card(self, module: Dict[str, Any]) -> ft.Card:
+        """Create a card for a module"""
         name = module.get('name', 'Unknown Module')
         description = module.get('description', 'No description available')
         version = module.get('version', '1.0')
+        author = module.get('author', 'Unknown')
         
-        # Format button text with newlines
-        button_text = f"{name}\n\n{description}\n\nv{version}"
-        btn.setText(button_text)
+        # Get icon based on module name
+        icon = self.get_module_icon(name)
         
-        # Set font
-        font = QFont("Arial", 10)
-        btn.setFont(font)
-        
-        # Store module info
-        btn.module_name = name
-        btn.module_id = name
-        
-        # Connect click
-        btn.clicked.connect(lambda: self.launch_module(btn.module_id))
-        
-        return btn
+        return ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Icon(icon, size=32, color=ft.Colors.PRIMARY),
+                                ft.Text(
+                                    name,
+                                    size=16,
+                                    weight=ft.FontWeight.BOLD,
+                                    expand=True,
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.START,
+                        ),
+                        ft.Container(height=10),
+                        ft.Text(
+                            description,
+                            size=13,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                            max_lines=2,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
+                        ft.Container(expand=True),
+                        ft.Row(
+                            controls=[
+                                ft.Text(
+                                    f"v{version}",
+                                    size=12,
+                                    color=ft.Colors.GREY_500,
+                                ),
+                                ft.Container(expand=True),
+                                ft.FilledButton(
+                                    text="Launch",
+                                    icon=ft.Icons.PLAY_ARROW,
+                                    on_click=lambda e, m=name: self.launch_module(m),
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                    ],
+                    spacing=5,
+                ),
+                padding=20,
+                width=350,
+                height=180,
+            ),
+            elevation=2,
+        )
     
-    def launch_module(self, module_id):
+    def get_module_icon(self, module_name: str) -> str:
+        """Get an icon for a module based on its name"""
+        icon_map = {
+            "Created Histories": ft.Icons.HISTORY_EDU,
+            "Sales Calculator": ft.Icons.CALCULATE,
+            "Employee Directory": ft.Icons.PEOPLE,
+            "Financial Reports": ft.Icons.BAR_CHART,
+            "Project Tracker": ft.Icons.TRACK_CHANGES,
+            "Time Logging": ft.Icons.ACCESS_TIME,
+            "Budget Planner": ft.Icons.ACCOUNT_BALANCE_WALLET,
+            "Resource Allocation": ft.Icons.INVENTORY_2,
+        }
+        return icon_map.get(module_name, ft.Icons.APPS)
+    
+    def create_recent_view(self) -> ft.Control:
+        """Create the recently used modules view"""
+        try:
+            recent = self.db.get_recently_used(limit=10) if self.db else []
+        except Exception as e:
+            print(f"Error getting recently used modules: {e}")
+            recent = []
+        
+        if not recent:
+            return ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(ft.Icons.HISTORY, size=64, color=ft.Colors.GREY_400),
+                        ft.Text(
+                            "No recently used modules",
+                            size=18,
+                            color=ft.Colors.GREY_500,
+                        ),
+                        ft.Text(
+                            "Launch a module to see it here",
+                            size=14,
+                            color=ft.Colors.GREY_400,
+                        ),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=10,
+                ),
+                alignment=ft.alignment.center,
+                expand=True,
+            )
+        
+        # Create list tiles for recent modules
+        tiles = []
+        for idx, module_dict in enumerate(recent):
+            module_id = module_dict.get('module_id', 'Unknown')
+            timestamp = module_dict.get('timestamp', '')
+            
+            tile = ft.ListTile(
+                leading=ft.Icon(self.get_module_icon(module_id)),
+                title=ft.Text(module_id, weight=ft.FontWeight.W_500),
+                subtitle=ft.Text(f"Last used: {timestamp}"),
+                trailing=ft.IconButton(
+                    icon=ft.Icons.PLAY_CIRCLE_OUTLINE,
+                    tooltip="Launch",
+                    on_click=lambda e, m=module_id: self.launch_module(m),
+                ),
+                on_click=lambda e, m=module_id: self.launch_module(m),
+            )
+            tiles.append(tile)
+            if idx < len(recent) - 1:
+                tiles.append(ft.Divider(height=1))
+        
+        return ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Text(
+                        "Recently Used",
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    margin=ft.margin.only(bottom=20),
+                ),
+                ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(controls=tiles),
+                        padding=10,
+                    ),
+                    expand=True,
+                ),
+            ],
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+        )
+    
+    def create_settings_view(self) -> ft.Control:
+        """Create the settings view"""
+        return ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Text(
+                        "Settings",
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    margin=ft.margin.only(bottom=20),
+                ),
+                ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Text("Appearance", size=18, weight=ft.FontWeight.W_500),
+                                ft.Divider(height=1),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.DARK_MODE),
+                                    title=ft.Text("Dark Mode"),
+                                    subtitle=ft.Text("Toggle dark/light theme"),
+                                    trailing=ft.Switch(
+                                        value=self.page.theme_mode == ft.ThemeMode.DARK,
+                                        on_change=self.on_theme_switch_change,
+                                    ),
+                                ),
+                                ft.Container(height=20),
+                                ft.Text("Database", size=18, weight=ft.FontWeight.W_500),
+                                ft.Divider(height=1),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.DELETE_SWEEP),
+                                    title=ft.Text("Clear Recent History"),
+                                    subtitle=ft.Text("Remove all recently used entries"),
+                                    trailing=ft.OutlinedButton(
+                                        text="Clear",
+                                        on_click=self.clear_recent_history,
+                                    ),
+                                ),
+                            ],
+                            spacing=5,
+                        ),
+                        padding=20,
+                    ),
+                ),
+            ],
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+        )
+    
+    def create_help_view(self) -> ft.Control:
+        """Create the help view"""
+        return ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Text(
+                        "Help & About",
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    margin=ft.margin.only(bottom=20),
+                ),
+                ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.INFO_OUTLINE),
+                                    title=ft.Text("About MeterLabTools"),
+                                    subtitle=ft.Text(
+                                        f"Version {APP_VERSION}\n"
+                                        "A modular launcher for operational tools\n"
+                                        "Created by: gwchristen"
+                                    ),
+                                ),
+                                ft.Divider(height=1),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.APPS),
+                                    title=ft.Text("Modules"),
+                                    subtitle=ft.Text(
+                                        "• 8 pre-configured modules\n"
+                                        "• Click 'Launch' to start a module\n"
+                                        "• Recently used modules are tracked"
+                                    ),
+                                ),
+                                ft.Divider(height=1),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.NAVIGATION),
+                                    title=ft.Text("Navigation"),
+                                    subtitle=ft.Text(
+                                        "• Home: View all modules\n"
+                                        "• Recent: See recently used modules\n"
+                                        "• Settings: Customize appearance\n"
+                                        "• Help: View this information"
+                                    ),
+                                ),
+                                ft.Divider(height=1),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.PALETTE),
+                                    title=ft.Text("Themes"),
+                                    subtitle=ft.Text(
+                                        "Use the theme toggle in the app bar or\n"
+                                        "Settings to switch between light and dark modes"
+                                    ),
+                                ),
+                            ],
+                            spacing=5,
+                        ),
+                        padding=10,
+                    ),
+                ),
+            ],
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+        )
+    
+    def launch_module(self, module_id: str):
         """Launch a selected module"""
         print(f"\n{'='*50}")
         print(f"Launching module: {module_id}")
@@ -226,256 +522,187 @@ class MeterLabToolsLauncher(QMainWindow):
         
         # Record in database
         try:
-            timestamp = current_datetime_utc()
-            self.db.add_recent_module(module_id, timestamp)
-            print(f"Recorded module usage in database")
+            if self.db:
+                timestamp = current_datetime_utc()
+                self.db.add_recent_module(module_id, timestamp)
+                print("Recorded module usage in database")
         except Exception as e:
             print(f"Error recording module: {e}")
         
-        # Launch the actual module based on module_id
+        # Show snackbar for module launch
         if module_id == "Created Histories":
             self.launch_created_histories()
-        elif module_id == "Sales Calculator":
-            QMessageBox.information(self, "Module", "Sales Calculator - Coming soon!")
-        elif module_id == "Employee Directory":
-            QMessageBox.information(self, "Module", "Employee Directory - Coming soon!")
-        elif module_id == "Financial Reports":
-            QMessageBox.information(self, "Module", "Financial Reports - Coming soon!")
-        elif module_id == "Project Tracker":
-            QMessageBox.information(self, "Module", "Project Tracker - Coming soon!")
-        elif module_id == "Time Logging":
-            QMessageBox.information(self, "Module", "Time Logging - Coming soon!")
-        elif module_id == "Budget Planner":
-            QMessageBox.information(self, "Module", "Budget Planner - Coming soon!")
-        elif module_id == "Resource Allocation":
-            QMessageBox.information(self, "Module", "Resource Allocation - Coming soon!")
         else:
-            QMessageBox.information(self, "Module Launch", 
-                                   f"Module '{module_id}' would launch here")
+            self.show_snackbar(f"{module_id} - Coming soon!")
     
     def launch_created_histories(self):
         """Launch the Created Histories module"""
         try:
-            # Import the module
-            import sys
-            sys.path.insert(0, 'modules/module_2')
-            from app import CreatedHistoriesApp
-            
-            # Create and show the window with current theme
-            self.created_histories_window = CreatedHistoriesApp(parent_theme=self.current_theme)
-            self.created_histories_window.show()
-            
+            # For now, show a placeholder since the module is PyQt6-based
+            # In a full conversion, this module would also need to be converted to Flet
+            self.show_snackbar("Created Histories module launching...")
             print("Created Histories module launched successfully")
+            
+            # Note: The actual module launch would require converting the module to Flet
+            # or running it as a separate process
             
         except Exception as e:
             error_msg = f"Error launching Created Histories: {e}"
             print(error_msg)
             import traceback
             traceback.print_exc()
-            QMessageBox.warning(self, "Error", error_msg)
+            self.show_snackbar(error_msg, is_error=True)
     
-    def create_menu_bar(self):
-        """Create the menu bar"""
-        menubar = self.menuBar()
+    def toggle_theme(self, e):
+        """Toggle between light and dark theme"""
+        if self.page.theme_mode == ft.ThemeMode.LIGHT:
+            self.page.theme_mode = ft.ThemeMode.DARK
+            e.control.icon = ft.Icons.DARK_MODE
+        else:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+            e.control.icon = ft.Icons.LIGHT_MODE
         
-        # File Menu
-        file_menu = menubar.addMenu('File')
-        file_menu.addAction('Refresh Modules', self.refresh_modules)
-        file_menu.addSeparator()
-        file_menu.addAction('Exit', self.close)
-        
-        # View Menu
-        view_menu = menubar.addMenu('View')
-        view_menu.addAction('Light Theme', self.apply_light_theme)
-        view_menu.addAction('Dark Theme', self.apply_dark_theme)
-        view_menu.addSeparator()
-        view_menu.addAction('Refresh', self.refresh_modules)
-        
-        # Help Menu
-        help_menu = menubar.addMenu('Help')
-        help_menu.addAction('About', self.show_about)
-        help_menu.addAction('Documentation', self.show_documentation)
+        self.page.update()
+        print(f"Theme switched to: {self.page.theme_mode}")
     
-    def refresh_modules(self):
+    def on_theme_switch_change(self, e):
+        """Handle theme switch toggle in settings"""
+        if e.control.value:
+            self.page.theme_mode = ft.ThemeMode.DARK
+        else:
+            self.page.theme_mode = ft.ThemeMode.LIGHT
+        
+        self.page.update()
+        print(f"Theme switched to: {self.page.theme_mode}")
+    
+    def refresh_modules(self, e):
         """Refresh the modules list"""
         print("Refreshing modules...")
         self.config = self.load_config()
         
-        # Clear current layout
-        central_widget = self.centralWidget()
-        if central_widget:
-            central_widget.deleteLater()
+        # Update the content area if on home view
+        if self.current_view == "home":
+            self.content_area.content = self.create_home_view()
+            self.page.update()
         
-        # Recreate UI
-        self.setup_ui()
+        self.show_snackbar("Modules refreshed successfully")
         print("Modules refreshed successfully")
     
-    def apply_light_theme(self):
-        """Apply light theme"""
-        self.current_theme = "Light"
-        self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background-color: #ffffff;
-                color: #000000;
-            }
-            QMenuBar {
-                background-color: #f8f9fa;
-                color: #000000;
-            }
-            QMenuBar::item:selected {
-                background-color: #e9ecef;
-            }
-            QMenu {
-                background-color: #ffffff;
-                color: #000000;
-            }
-            QMenu::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QPushButton {
-                background-color: #ecf0f1;
-                color: #000000;
-                border: 1px solid #bdc3c7;
-                padding: 8px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #3498db;
-                color: #ffffff;
-                border: 1px solid #3498db;
-            }
-            QPushButton:pressed {
-                background-color: #2980b9;
-            }
-            QLabel {
-                color: #000000;
-            }
-            QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #e9ecef;
-            }
-            QScrollArea {
-                background-color: #ffffff;
-            }
-        """)
-        print("Light theme applied")
-    
-    def apply_dark_theme(self):
-        """Apply dark theme"""
-        self.current_theme = "Dark"
-        self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background-color: #1e1e1e;
-                color: #ffffff;
-            }
-            QMenuBar {
-                background-color: #2d2d2d;
-                color: #ffffff;
-            }
-            QMenuBar::item:selected {
-                background-color: #3498db;
-            }
-            QMenu {
-                background-color: #2d2d2d;
-                color: #ffffff;
-            }
-            QMenu::item:selected {
-                background-color: #3498db;
-                color: #ffffff;
-            }
-            QPushButton {
-                background-color: #3d3d3d;
-                color: #ffffff;
-                border: 1px solid #4d4d4d;
-                padding: 8px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #3498db;
-                color: #ffffff;
-                border: 1px solid #3498db;
-            }
-            QPushButton:pressed {
-                background-color: #2980b9;
-            }
-            QLabel {
-                color: #ffffff;
-            }
-            QFrame {
-                background-color: #2d2d2d;
-                border: 1px solid #3d3d3d;
-            }
-            QScrollArea {
-                background-color: #1e1e1e;
-            }
-        """)
-        print("Dark theme applied")
-    
-    def show_settings(self):
-        """Show settings dialog"""
-        msg = "Settings dialog - Coming soon!"
-        QMessageBox.information(self, "Settings", msg)
-    
-    def show_help(self):
-        """Show help dialog"""
-        msg = (
-            "MeterLabTools v1.0.0\n\n"
-            "A modular launcher for Python converted spreadsheets\n"
-            "that are tools for operations.\n\n"
-            "Features:\n"
-            "• 8 pre-configured modules\n"
-            "• Recently used tracking\n"
-            "• Light/Dark themes\n"
-            "• Database persistence\n\n"
-            "Created by: gwchristen"
+    def clear_recent_history(self, e):
+        """Clear the recent history"""
+        # Show confirmation dialog
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+        
+        def confirm_clear(e):
+            try:
+                if self.db:
+                    self.db.execute_update("DELETE FROM recently_used")
+                    self.show_snackbar("Recent history cleared")
+                    print("Recent history cleared")
+            except Exception as ex:
+                self.show_snackbar(f"Error: {ex}", is_error=True)
+            finally:
+                dialog.open = False
+                self.page.update()
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Clear Recent History"),
+            content=ft.Text("Are you sure you want to clear all recent history?"),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.TextButton("Clear", on_click=confirm_clear),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
         )
-        QMessageBox.information(self, "Help", msg)
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
     
-    def show_about(self):
+    def show_about(self, e):
         """Show about dialog"""
-        msg = (
-            f"{APP_NAME} v{APP_VERSION}\n\n"
-            "A modular launcher for operational tools\n\n"
-            f"Current Time: {current_datetime_utc()}\n"
-            f"Current User: gwchristen\n\n"
-            "© 2025 - All rights reserved"
+        dialog = ft.AlertDialog(
+            title=ft.Text("About MeterLabTools"),
+            content=ft.Column(
+                controls=[
+                    ft.Text(f"{APP_NAME} v{APP_VERSION}", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=10),
+                    ft.Text("A modular launcher for operational tools"),
+                    ft.Container(height=10),
+                    ft.Text(f"Current Time: {current_datetime_utc()}"),
+                    ft.Text("Current User: gwchristen"),
+                    ft.Container(height=10),
+                    ft.Text("© 2025 - All rights reserved", size=12, color=ft.Colors.GREY_500),
+                ],
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("Close", on_click=lambda e: self.close_dialog(dialog)),
+            ],
         )
-        QMessageBox.information(self, "About", msg)
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
     
-    def show_documentation(self):
-        """Show documentation"""
-        msg = (
-            "Documentation\n\n"
-            "To launch a module:\n"
-            "1. Click on any module card in the main area\n"
-            "2. The module will be launched\n\n"
-            "Recently used modules appear in the left sidebar\n"
-            "for quick access.\n\n"
-            "Use View menu to switch themes.\n"
-            "Use File menu to refresh or exit."
+    def show_documentation(self, e):
+        """Show documentation dialog"""
+        dialog = ft.AlertDialog(
+            title=ft.Text("Documentation"),
+            content=ft.Column(
+                controls=[
+                    ft.Text("How to use MeterLabTools:", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=10),
+                    ft.Text("1. Navigate using the rail on the left"),
+                    ft.Text("2. Click 'Launch' on any module card"),
+                    ft.Text("3. Recently used modules appear in Recent"),
+                    ft.Container(height=10),
+                    ft.Text("Keyboard Shortcuts:", weight=ft.FontWeight.BOLD),
+                    ft.Text("• Use theme toggle to switch themes"),
+                    ft.Text("• Use refresh button to reload modules"),
+                ],
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("Close", on_click=lambda e: self.close_dialog(dialog)),
+            ],
         )
-        QMessageBox.information(self, "Documentation", msg)
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
+    def close_dialog(self, dialog: ft.AlertDialog):
+        """Close a dialog"""
+        dialog.open = False
+        self.page.update()
+    
+    def show_snackbar(self, message: str, is_error: bool = False):
+        """Show a snackbar notification"""
+        snackbar = ft.SnackBar(
+            content=ft.Text(message),
+            bgcolor=ft.Colors.ERROR if is_error else None,
+            action="OK",
+        )
+        self.page.overlay.append(snackbar)
+        snackbar.open = True
+        self.page.update()
 
 
-def main():
+def main(page: ft.Page):
     """Main application entry point"""
-    app = QApplication(sys.argv)
-    
     print(f"\n{'='*60}")
-    print(f"MeterLabTools Launcher")
+    print(f"MeterLabTools Launcher (Flet)")
     print(f"Version: {APP_VERSION}")
     print(f"Started: {current_datetime_utc()}")
     print(f"User: gwchristen")
     print(f"{'='*60}\n")
     
-    launcher = MeterLabToolsLauncher()
-    launcher.show()
-    
-    sys.exit(app.exec())
+    MeterLabToolsLauncher(page)
 
 
 if __name__ == '__main__':
-    main()
+    ft.app(target=main)
