@@ -109,7 +109,7 @@ class EnhancedDataGrid(ft.Column):
                         return dt.strftime("%m/%d/%Y")
                     except ValueError:
                         continue
-            except:
+            except (ValueError, TypeError, AttributeError):
                 pass
         
         # Currency formatting

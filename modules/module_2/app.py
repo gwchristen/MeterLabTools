@@ -29,6 +29,7 @@ from ui_components.enhanced_grid_flet import EnhancedDataGrid
 from ui_components.filter_sidebar_flet import FilterSidebar
 from ui_components.form_builder_flet import FormBuilder
 from ui_components.status_indicators_flet import StatusIndicator
+from ui_components.oor_parser import OORParser
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -508,8 +509,6 @@ class CreatedHistoriesApp:
         if not self.detail_panel or not record_data:
             return
         
-        from .ui_components.oor_parser import OORParser
-        
         # Build detail fields
         fields = []
         field_labels = self.FULL_COLUMNS
@@ -925,8 +924,6 @@ class CreatedHistoriesApp:
             self.page.update()
         
         def save_record(e):
-            from .ui_components.oor_parser import OORParser
-            
             try:
                 # Auto-calculate Qty from OOR Serial or Beg/End Ser
                 oor_serial_value = oor_serial_field.value or ''
