@@ -4,6 +4,12 @@ Enhanced Data Grid for Flet - Professional data table with sorting and selection
 
 import flet as ft
 from typing import List, Optional, Callable, Any
+from datetime import datetime
+
+try:
+    from .oor_parser import OORParser
+except ImportError:
+    from oor_parser import OORParser
 
 
 class EnhancedDataGrid(ft.Column):
@@ -14,6 +20,7 @@ class EnhancedDataGrid(ft.Column):
         columns: List[str],
         on_row_select: Optional[Callable[[int], None]] = None,
         on_row_double_click: Optional[Callable[[int], None]] = None,
+        column_alignments: Optional[List[str]] = None,
     ):
         self.columns = columns
         self.data: List[tuple] = []
@@ -23,6 +30,7 @@ class EnhancedDataGrid(ft.Column):
         self.selected_row = -1
         self.on_row_select = on_row_select
         self.on_row_double_click = on_row_double_click
+        self.column_alignments = column_alignments or ["left"] * len(columns)
         
         # Create data table with columns
         self.data_table = ft.DataTable(
@@ -86,6 +94,49 @@ class EnhancedDataGrid(ft.Column):
         self.selected_row = -1
         self._refresh_display()
     
+    def _format_cell_value(self, value: Any, column_name: str) -> str:
+        """Format cell value based on column type"""
+        if value is None or value == "":
+            return ""
+        
+        # Date formatting (MM/DD/YYYY)
+        if "date" in column_name.lower() and isinstance(value, str):
+            try:
+                # Try parsing common date formats
+                for fmt in ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y"]:
+                    try:
+                        dt = datetime.strptime(value, fmt)
+                        return dt.strftime("%m/%d/%Y")
+                    except ValueError:
+                        continue
+            except (ValueError, TypeError, AttributeError):
+                pass
+        
+        # Currency formatting
+        if column_name in ["Unit Cost"] and isinstance(value, (int, float)):
+            return f"${value:,.2f}"
+        
+        # Quantity formatting (thousands separator, no decimals)
+        if column_name == "Qty" and isinstance(value, (int, float)):
+            return f"{int(value):,}"
+        
+        # OOR Serial compact display
+        if column_name == "OOR Serial" and value:
+            parser = OORParser()
+            if parser.parse(str(value)):
+                return parser.format_display(max_length=30)
+            return str(value)
+        
+        return str(value)
+    
+    def _get_cell_tooltip(self, value: Any, column_name: str) -> Optional[str]:
+        """Get tooltip for cell if needed"""
+        if column_name == "OOR Serial" and value:
+            parser = OORParser()
+            if parser.parse(str(value)):
+                return parser.get_detailed_breakdown()
+        return None
+    
     def _refresh_display(self):
         """Refresh the table display"""
         # Clear and rebuild rows
@@ -94,14 +145,28 @@ class EnhancedDataGrid(ft.Column):
         for row_idx, row_data in enumerate(self.filtered_data):
             cells = []
             for col_idx, value in enumerate(row_data):
-                text_value = str(value) if value is not None else ""
+                column_name = self.columns[col_idx] if col_idx < len(self.columns) else ""
+                text_value = self._format_cell_value(value, column_name)
+                tooltip = self._get_cell_tooltip(value, column_name)
+                alignment = self.column_alignments[col_idx] if col_idx < len(self.column_alignments) else "left"
+                
+                cell_text = ft.Text(
+                    text_value,
+                    size=13,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    text_align=ft.TextAlign.CENTER if alignment == "center" else ft.TextAlign.LEFT,
+                )
+                
+                # Add tooltip if available
+                if tooltip:
+                    cell_text = ft.Tooltip(
+                        message=tooltip,
+                        content=cell_text,
+                    )
+                
                 cells.append(
                     ft.DataCell(
-                        ft.Text(
-                            text_value,
-                            size=13,
-                            overflow=ft.TextOverflow.ELLIPSIS,
-                        ),
+                        cell_text,
                         on_tap=lambda e, idx=row_idx: self._on_cell_tap(idx),
                         on_double_tap=lambda e, idx=row_idx: self._on_cell_double_tap(idx),
                     )
