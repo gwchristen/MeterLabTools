@@ -37,6 +37,7 @@ class InventoryDatabase:
                     dev_code TEXT,
                     beg_ser TEXT,
                     end_ser TEXT,
+                    oor_serial TEXT,
                     qty INTEGER,
                     po_date TEXT,
                     po_number TEXT,
@@ -53,6 +54,13 @@ class InventoryDatabase:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # Migration: Add oor_serial column if it doesn't exist
+            cursor.execute("PRAGMA table_info(inventory)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'oor_serial' not in columns:
+                cursor.execute('ALTER TABLE inventory ADD COLUMN oor_serial TEXT')
+                print("Added oor_serial column to inventory table")
             
             # Create indexes for faster queries
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_opco_type ON inventory(opco, device_type)')
@@ -85,7 +93,7 @@ class InventoryDatabase:
             
             cursor.execute('''
                 SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
-                       qty, po_date, po_number, recv_date, unit_cost, cid,
+                       oor_serial, qty, po_date, po_number, recv_date, unit_cost, cid,
                        me_number, pur_code, est, use, notes1, notes2
                 FROM inventory
                 WHERE opco = ? AND device_type = ?
@@ -109,7 +117,7 @@ class InventoryDatabase:
             if search_type == "dev_code":
                 cursor.execute('''
                     SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
-                           qty, po_date, po_number, recv_date, unit_cost, cid,
+                           oor_serial, qty, po_date, po_number, recv_date, unit_cost, cid,
                            me_number, pur_code, est, use, notes1, notes2
                     FROM inventory
                     WHERE opco = ? AND device_type = ? AND dev_code LIKE ?
@@ -119,7 +127,7 @@ class InventoryDatabase:
             elif search_type == "po_number":
                 cursor.execute('''
                     SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
-                           qty, po_date, po_number, recv_date, unit_cost, cid,
+                           oor_serial, qty, po_date, po_number, recv_date, unit_cost, cid,
                            me_number, pur_code, est, use, notes1, notes2
                     FROM inventory
                     WHERE opco = ? AND device_type = ? AND po_number LIKE ?
@@ -129,7 +137,7 @@ class InventoryDatabase:
             elif search_type == "recv_date":
                 cursor.execute('''
                     SELECT id, opco, device_type, status, mfr, dev_code, beg_ser, end_ser,
-                           qty, po_date, po_number, recv_date, unit_cost, cid,
+                           oor_serial, qty, po_date, po_number, recv_date, unit_cost, cid,
                            me_number, pur_code, est, use, notes1, notes2
                     FROM inventory
                     WHERE opco = ? AND device_type = ? AND recv_date = ?
@@ -168,10 +176,10 @@ class InventoryDatabase:
             
             cursor.execute('''
                 INSERT INTO inventory (
-                    opco, device_type, status, mfr, dev_code, beg_ser, end_ser, qty,
+                    opco, device_type, status, mfr, dev_code, beg_ser, end_ser, oor_serial, qty,
                     po_date, po_number, recv_date, unit_cost, cid, me_number,
                     pur_code, est, use, notes1, notes2, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 item.get('opco'),
                 item.get('device_type'),
@@ -180,6 +188,7 @@ class InventoryDatabase:
                 item.get('dev_code'),
                 item.get('beg_ser'),
                 item.get('end_ser'),
+                item.get('oor_serial'),
                 item.get('qty', 0),
                 item.get('po_date'),
                 item.get('po_number'),
@@ -213,7 +222,7 @@ class InventoryDatabase:
             cursor.execute('''
                 UPDATE inventory SET
                     opco = ?, device_type = ?, status = ?, mfr = ?, dev_code = ?,
-                    beg_ser = ?, end_ser = ?, qty = ?, po_date = ?, po_number = ?,
+                    beg_ser = ?, end_ser = ?, oor_serial = ?, qty = ?, po_date = ?, po_number = ?,
                     recv_date = ?, unit_cost = ?, cid = ?, me_number = ?,
                     pur_code = ?, est = ?, use = ?, notes1 = ?, notes2 = ?,
                     updated_at = ?
@@ -226,6 +235,7 @@ class InventoryDatabase:
                 item.get('dev_code'),
                 item.get('beg_ser'),
                 item.get('end_ser'),
+                item.get('oor_serial'),
                 item.get('qty', 0),
                 item.get('po_date'),
                 item.get('po_number'),

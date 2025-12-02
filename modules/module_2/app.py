@@ -48,11 +48,29 @@ class CreatedHistoriesApp:
         ("I&M", "Transformers"),
     ]
     
-    COLUMNS = [
+    # Full database columns
+    FULL_COLUMNS = [
         "ID", "OpCo", "Device Type", "Status", "MFR", "Dev Code", "Beg Ser", "End Ser",
-        "Qty", "PO Date", "PO Number", "Recv Date", "Unit Cost", "CID",
+        "OOR Serial", "Qty", "PO Date", "PO Number", "Recv Date", "Unit Cost", "CID",
         "M.E. #", "Pur. Code", "Est.", "Use", "Notes 1", "Notes 2"
     ]
+    
+    # Streamlined grid columns for display
+    GRID_COLUMNS = [
+        "ID", "Dev Code", "Beg Ser", "End Ser", "OOR Serial", "Qty", "Recv Date", "CID"
+    ]
+    
+    # Column index mapping from full to grid columns
+    COLUMN_INDEX_MAP = {
+        "ID": 0,
+        "Dev Code": 5,
+        "Beg Ser": 6,
+        "End Ser": 7,
+        "OOR Serial": 8,
+        "Qty": 9,
+        "Recv Date": 12,
+        "CID": 14,
+    }
     
     # Sheet name mapping for import
     SHEET_MAP = {
@@ -65,7 +83,7 @@ class CreatedHistoriesApp:
     def __init__(self, page: ft.Page):
         self.page = page
         self.edit_mode = False
-        self.current_theme = "Light"
+        self.current_theme = "Dark"  # Default to dark mode
         self.current_sheet: Optional[str] = None
         self.current_view = "dashboard"
         
@@ -76,10 +94,12 @@ class CreatedHistoriesApp:
         # UI component references
         self.nav_rail: Optional[ft.NavigationRail] = None
         self.content_area: Optional[ft.Container] = None
+        self.detail_panel: Optional[ft.Container] = None
         self.breadcrumb_label: Optional[ft.Text] = None
         self.subtitle_label: Optional[ft.Text] = None
         self.mode_indicator: Optional[StatusIndicator] = None
         self.edit_mode_btn: Optional[ft.TextButton] = None
+        self.search_field: Optional[ft.TextField] = None
         
         # Dashboard cards
         self.total_records_card: Optional[MetricCard] = None
@@ -92,6 +112,7 @@ class CreatedHistoriesApp:
         self.sheet_grids: Dict[str, EnhancedDataGrid] = {}
         self.sheet_filter_sidebars: Dict[str, FilterSidebar] = {}
         self.sheet_filter_visible: Dict[str, bool] = {}
+        self.selected_record_data: Optional[tuple] = None
         
         # Setup page
         self.setup_page()
@@ -107,10 +128,10 @@ class CreatedHistoriesApp:
     def setup_page(self):
         """Configure page settings"""
         self.page.title = "Created Histories - Device History Management"
-        self.page.window.width = 1400
-        self.page.window.height = 900
+        self.page.window.width = 1600
+        self.page.window.height = 950
         self.page.padding = 0
-        self.page.theme_mode = ft.ThemeMode.LIGHT
+        self.page.theme_mode = ft.ThemeMode.DARK  # Default to dark mode
         self.page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE)
     
     def build_ui(self):
@@ -162,6 +183,18 @@ class CreatedHistoriesApp:
             spacing=0,
         )
         
+        # Search bar
+        self.search_field = ft.TextField(
+            hint_text="Search across all columns...",
+            width=300,
+            height=40,
+            dense=True,
+            border_radius=20,
+            prefix_icon=ft.Icons.SEARCH,
+            on_change=self.on_search_change,
+            bgcolor=ft.Colors.SURFACE_CONTAINER,
+        )
+        
         # Mode indicator
         self.mode_indicator = StatusIndicator('inactive', 'Read-Only')
         
@@ -178,12 +211,14 @@ class CreatedHistoriesApp:
             center_title=False,
             bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
             actions=[
+                self.search_field,
+                ft.Container(width=16),
                 self.mode_indicator,
                 ft.Container(width=16),
                 self.edit_mode_btn,
                 ft.Container(width=16),
                 ft.IconButton(
-                    icon=ft.Icons.LIGHT_MODE,
+                    icon=ft.Icons.DARK_MODE,
                     tooltip="Toggle Theme",
                     on_click=self.toggle_theme,
                 ),
@@ -215,14 +250,20 @@ class CreatedHistoriesApp:
             ),
         ]
         
-        # Add sheet destinations
-        for opco, device_type in self.SHEETS:
-            sheet_name = f"{opco} - {device_type}"
+        # Add sheet destinations with shortened labels
+        sheet_labels = [
+            "Ohio M",
+            "I&M M",
+            "Ohio T",
+            "I&M T",
+        ]
+        
+        for idx, (opco, device_type) in enumerate(self.SHEETS):
             destinations.append(
                 ft.NavigationRailDestination(
                     icon=ft.Icons.TABLE_CHART_OUTLINED,
                     selected_icon=ft.Icons.TABLE_CHART,
-                    label=sheet_name,
+                    label=sheet_labels[idx],
                 )
             )
         
@@ -313,13 +354,15 @@ class CreatedHistoriesApp:
         return dashboard
     
     def create_sheet_view(self, opco: str, device_type: str) -> ft.Control:
-        """Create a sheet view with data grid and toolbar"""
+        """Create a sheet view with data grid, toolbar, and detail panel"""
         sheet_name = f"{opco} - {device_type}"
         
-        # Create data grid
+        # Create data grid with streamlined columns and row selection callback
         grid = EnhancedDataGrid(
-            columns=self.COLUMNS,
+            columns=self.GRID_COLUMNS,
+            on_row_select=lambda idx: self.on_row_selected(opco, device_type, idx),
             on_row_double_click=lambda idx: self.edit_record(opco, device_type),
+            column_alignments=["center"] * len(self.GRID_COLUMNS),
         )
         self.sheet_grids[sheet_name] = grid
         
@@ -369,14 +412,17 @@ class CreatedHistoriesApp:
         
         # Create filter sidebar
         filter_sidebar = FilterSidebar(
-            fields=self.COLUMNS,
+            fields=self.FULL_COLUMNS,
             on_apply_filters=lambda filters: self.apply_filters(opco, device_type, filters),
             on_clear_filters=lambda: self.load_sheet_data(opco, device_type),
         )
         self.sheet_filter_sidebars[sheet_name] = filter_sidebar
         self.sheet_filter_visible[sheet_name] = False
         
-        # Create main content with optional filter sidebar
+        # Create detail panel (right side, always visible)
+        self.detail_panel = self.create_detail_panel()
+        
+        # Create main content with grid and detail panel
         main_content = ft.Row(
             controls=[
                 ft.Container(
@@ -390,6 +436,11 @@ class CreatedHistoriesApp:
                     ),
                     expand=True,
                 ),
+                ft.VerticalDivider(width=1),
+                ft.Container(
+                    content=self.detail_panel,
+                    width=350,
+                ),
             ],
             expand=True,
         )
@@ -398,6 +449,199 @@ class CreatedHistoriesApp:
         self.load_sheet_data(opco, device_type)
         
         return main_content
+    
+    def create_detail_panel(self) -> ft.Column:
+        """Create the detail panel for showing selected record details"""
+        return ft.Column(
+            controls=[
+                ft.Text(
+                    "Record Details",
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
+                ),
+                ft.Divider(),
+                ft.Text(
+                    "Select a record to view details",
+                    size=12,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                    italic=True,
+                ),
+            ],
+            spacing=10,
+            scroll=ft.ScrollMode.AUTO,
+        )
+    
+    def update_detail_panel(self, record_data: tuple):
+        """Update detail panel with selected record data"""
+        if not self.detail_panel or not record_data:
+            return
+        
+        from .ui_components.oor_parser import OORParser
+        
+        # Build detail fields
+        fields = []
+        field_labels = self.FULL_COLUMNS
+        
+        for i, label in enumerate(field_labels):
+            value = record_data[i] if i < len(record_data) else ""
+            
+            # Special handling for OOR Serial
+            if label == "OOR Serial" and value:
+                parser = OORParser()
+                if parser.parse(str(value)):
+                    value_display = parser.get_detailed_breakdown()
+                else:
+                    value_display = str(value)
+            else:
+                value_display = str(value) if value is not None else ""
+            
+            fields.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text(label, size=11, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text(value_display, size=13, selectable=True),
+                        ],
+                        spacing=2,
+                    ),
+                    padding=ft.padding.only(bottom=8),
+                )
+            )
+        
+        # Action buttons (only show in edit mode)
+        action_buttons = []
+        if self.edit_mode:
+            action_buttons = [
+                ft.Divider(),
+                ft.Text("Actions", size=12, weight=ft.FontWeight.BOLD),
+                ft.FilledButton(
+                    text="Edit Record",
+                    icon=ft.Icons.EDIT,
+                    width=300,
+                    on_click=lambda e: self.edit_record_from_detail(),
+                ),
+                ft.OutlinedButton(
+                    text="Duplicate Record",
+                    icon=ft.Icons.COPY,
+                    width=300,
+                    on_click=lambda e: self.duplicate_record(),
+                ),
+                ft.OutlinedButton(
+                    text="Delete Record",
+                    icon=ft.Icons.DELETE,
+                    width=300,
+                    style=ft.ButtonStyle(color=ft.Colors.ERROR),
+                    on_click=lambda e: self.delete_record_from_detail(),
+                ),
+            ]
+        
+        # Update detail panel controls
+        self.detail_panel.controls = [
+            ft.Text(
+                "Record Details",
+                size=16,
+                weight=ft.FontWeight.BOLD,
+            ),
+            ft.Divider(),
+            *fields,
+            *action_buttons,
+        ]
+        
+        self.detail_panel.update()
+    
+    def on_row_selected(self, opco: str, device_type: str, row_idx: int):
+        """Handle row selection to update detail panel"""
+        sheet_name = f"{opco} - {device_type}"
+        grid = self.sheet_grids.get(sheet_name)
+        
+        if grid:
+            selected_data = grid.get_selected_data()
+            if selected_data:
+                self.selected_record_data = selected_data
+                self.update_detail_panel(selected_data)
+    
+    def on_search_change(self, e):
+        """Handle search field changes"""
+        search_text = e.control.value.strip().lower()
+        
+        if self.current_view == "sheet" and self.current_sheet:
+            # Find opco and device_type
+            opco, device_type = None, None
+            for o, d in self.SHEETS:
+                if f"{o} - {d}" == self.current_sheet:
+                    opco, device_type = o, d
+                    break
+            
+            if opco and device_type:
+                self.search_sheet_data(opco, device_type, search_text)
+    
+    def search_sheet_data(self, opco: str, device_type: str, search_text: str):
+        """Search data across all columns"""
+        sheet_name = f"{opco} - {device_type}"
+        grid = self.sheet_grids.get(sheet_name)
+        
+        if not grid:
+            return
+        
+        # Get all data from database
+        items = self.db.get_items_by_sheet(opco, device_type)
+        
+        if search_text:
+            # Filter items that match search text in any column
+            filtered_items = []
+            for item in items:
+                # Convert item to grid format
+                grid_item = self._convert_to_grid_format(item)
+                # Search across all columns in the original item
+                if any(search_text in str(val).lower() for val in item if val):
+                    filtered_items.append(grid_item)
+            
+            grid.set_data(filtered_items)
+        else:
+            # Show all data in grid format
+            grid_data = [self._convert_to_grid_format(item) for item in items]
+            grid.set_data(grid_data)
+    
+    def _convert_to_grid_format(self, full_record: tuple) -> tuple:
+        """Convert full database record to streamlined grid format"""
+        grid_record = []
+        for col_name in self.GRID_COLUMNS:
+            idx = self.COLUMN_INDEX_MAP.get(col_name, 0)
+            grid_record.append(full_record[idx] if idx < len(full_record) else "")
+        return tuple(grid_record)
+    
+    def edit_record_from_detail(self):
+        """Edit record from detail panel"""
+        if self.current_sheet:
+            opco, device_type = None, None
+            for o, d in self.SHEETS:
+                if f"{o} - {d}" == self.current_sheet:
+                    opco, device_type = o, d
+                    break
+            if opco and device_type:
+                self.edit_record(opco, device_type)
+    
+    def duplicate_record(self):
+        """Duplicate the selected record"""
+        if self.current_sheet and self.selected_record_data:
+            opco, device_type = None, None
+            for o, d in self.SHEETS:
+                if f"{o} - {d}" == self.current_sheet:
+                    opco, device_type = o, d
+                    break
+            if opco and device_type:
+                self.add_record(opco, device_type, duplicate_from=self.selected_record_data)
+    
+    def delete_record_from_detail(self):
+        """Delete record from detail panel"""
+        if self.current_sheet:
+            opco, device_type = None, None
+            for o, d in self.SHEETS:
+                if f"{o} - {d}" == self.current_sheet:
+                    opco, device_type = o, d
+                    break
+            if opco and device_type:
+                self.delete_record(opco, device_type)
     
     def show_dashboard(self):
         """Show dashboard view"""
@@ -450,7 +694,9 @@ class CreatedHistoriesApp:
                 return
             
             items = self.db.get_items_by_sheet(opco, device_type)
-            grid.set_data(items)
+            # Convert to grid format
+            grid_data = [self._convert_to_grid_format(item) for item in items]
+            grid.set_data(grid_data)
             
         except Exception as e:
             self.show_snackbar(f"Error loading data: {e}", is_error=True)
@@ -561,13 +807,19 @@ class CreatedHistoriesApp:
         dialog.open = True
         self.page.update()
     
-    def add_record(self, opco: str, device_type: str):
+    def add_record(self, opco: str, device_type: str, duplicate_from: Optional[tuple] = None):
         """Add new record"""
         if not self.edit_mode:
             self.show_snackbar("Edit mode is locked. Enable edit mode first.", is_error=True)
             return
         
-        self.show_add_edit_dialog(opco, device_type, None)
+        # If duplicating, fetch the full record
+        item_to_duplicate = None
+        if duplicate_from:
+            item_id = duplicate_from[0]  # First column is ID
+            item_to_duplicate = self.db.get_item_by_id(item_id)
+        
+        self.show_add_edit_dialog(opco, device_type, item_to_duplicate, is_duplicate=bool(duplicate_from))
     
     def edit_record(self, opco: str, device_type: str):
         """Edit selected record"""
@@ -594,9 +846,9 @@ class CreatedHistoriesApp:
         
         self.show_add_edit_dialog(opco, device_type, item)
     
-    def show_add_edit_dialog(self, opco: str, device_type: str, item: Optional[Dict] = None):
+    def show_add_edit_dialog(self, opco: str, device_type: str, item: Optional[Dict] = None, is_duplicate: bool = False):
         """Show add/edit record dialog"""
-        is_edit = item is not None
+        is_edit = item is not None and not is_duplicate
         
         # Create form fields
         status_field = ft.TextField(label="Status", value=item.get('status', '') if item else '')
@@ -604,6 +856,12 @@ class CreatedHistoriesApp:
         dev_code_field = ft.TextField(label="Device Code", value=item.get('dev_code', '') if item else '')
         beg_ser_field = ft.TextField(label="Beginning Serial", value=item.get('beg_ser', '') if item else '')
         end_ser_field = ft.TextField(label="Ending Serial", value=item.get('end_ser', '') if item else '')
+        oor_serial_field = ft.TextField(
+            label="OOR Serial (ranges/singles separated by commas)", 
+            value=item.get('oor_serial', '') if item else '',
+            multiline=True,
+            hint_text="e.g., 1000-1010, 1050, 2000-2005"
+        )
         qty_field = ft.TextField(label="Quantity", value=str(item.get('qty', 0)) if item else '0', keyboard_type=ft.KeyboardType.NUMBER)
         po_date_field = ft.TextField(label="PO Date", value=item.get('po_date', '') if item else '')
         po_number_field = ft.TextField(label="PO Number", value=item.get('po_number', '') if item else '')
@@ -622,11 +880,37 @@ class CreatedHistoriesApp:
             self.page.update()
         
         def save_record(e):
+            from .ui_components.oor_parser import OORParser
+            
             try:
-                # Parse values
-                qty = int(qty_field.value or 0)
-            except ValueError:
+                # Auto-calculate Qty from OOR Serial or Beg/End Ser
+                oor_serial_value = oor_serial_field.value or ''
                 qty = 0
+                
+                if oor_serial_value.strip():
+                    # Calculate from OOR Serial
+                    parser = OORParser()
+                    if parser.parse(oor_serial_value):
+                        qty = parser.get_total_qty()
+                    else:
+                        self.show_snackbar("Invalid OOR Serial format", is_error=True)
+                        return
+                else:
+                    # Try to calculate from Beg/End Ser
+                    beg_ser = beg_ser_field.value or ''
+                    end_ser = end_ser_field.value or ''
+                    if beg_ser and end_ser:
+                        parser = OORParser()
+                        qty = parser.calculate_qty_from_range(beg_ser, end_ser)
+                    else:
+                        # Use manual qty
+                        try:
+                            qty = int(qty_field.value or 0)
+                        except ValueError:
+                            qty = 0
+            except Exception as ex:
+                self.show_snackbar(f"Error calculating quantity: {ex}", is_error=True)
+                return
             
             try:
                 unit_cost = float(unit_cost_field.value or 0.0)
@@ -641,6 +925,7 @@ class CreatedHistoriesApp:
                 'dev_code': dev_code_field.value or '',
                 'beg_ser': beg_ser_field.value or '',
                 'end_ser': end_ser_field.value or '',
+                'oor_serial': oor_serial_value,
                 'qty': qty,
                 'po_date': po_date_field.value or '',
                 'po_number': po_number_field.value or '',
@@ -682,6 +967,8 @@ class CreatedHistoriesApp:
                 ], spacing=16),
                 ft.Row([status_field, mfr_field], spacing=16, expand=True),
                 ft.Row([dev_code_field, beg_ser_field, end_ser_field], spacing=16, expand=True),
+                oor_serial_field,
+                ft.Text("Note: Qty will auto-calculate from OOR Serial or Beg/End Ser", size=11, italic=True, color=ft.Colors.ON_SURFACE_VARIANT),
                 ft.Row([qty_field, po_date_field, po_number_field], spacing=16, expand=True),
                 ft.Row([recv_date_field, unit_cost_field, cid_field], spacing=16, expand=True),
                 ft.Row([me_number_field, pur_code_field, est_field, use_field], spacing=16, expand=True),
