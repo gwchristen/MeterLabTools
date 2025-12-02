@@ -6,6 +6,11 @@ import flet as ft
 from typing import List, Optional, Callable, Any
 from datetime import datetime
 
+try:
+    from .oor_parser import OORParser
+except ImportError:
+    from oor_parser import OORParser
+
 
 class EnhancedDataGrid(ft.Column):
     """Enhanced data grid with sorting, filtering, and row selection"""
@@ -117,8 +122,6 @@ class EnhancedDataGrid(ft.Column):
         
         # OOR Serial compact display
         if column_name == "OOR Serial" and value:
-            # Import here to avoid circular dependency
-            from .oor_parser import OORParser
             parser = OORParser()
             if parser.parse(str(value)):
                 return parser.format_display(max_length=30)
@@ -129,7 +132,6 @@ class EnhancedDataGrid(ft.Column):
     def _get_cell_tooltip(self, value: Any, column_name: str) -> Optional[str]:
         """Get tooltip for cell if needed"""
         if column_name == "OOR Serial" and value:
-            from .oor_parser import OORParser
             parser = OORParser()
             if parser.parse(str(value)):
                 return parser.get_detailed_breakdown()

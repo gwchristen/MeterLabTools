@@ -319,6 +319,34 @@ class CreatedHistoriesApp:
             weight=ft.FontWeight.W_600,
         )
         
+        # Quick action buttons for sheets
+        quick_actions_label = ft.Text(
+            "Quick Access",
+            size=18,
+            weight=ft.FontWeight.W_600,
+        )
+        
+        sheet_labels = [
+            ("Ohio M", "Ohio", "Meters"),
+            ("I&M M", "I&M", "Meters"),
+            ("Ohio T", "Ohio", "Transformers"),
+            ("I&M T", "I&M", "Transformers"),
+        ]
+        
+        quick_action_buttons = ft.Row(
+            controls=[
+                ft.ElevatedButton(
+                    text=label,
+                    icon=ft.Icons.TABLE_CHART,
+                    on_click=lambda e, o=opco, d=dtype: self.show_sheet(f"{o} - {d}"),
+                    width=150,
+                )
+                for label, opco, dtype in sheet_labels
+            ],
+            spacing=16,
+            wrap=True,
+        )
+        
         # Create stats cards for each sheet
         sheet_stats_row = ft.Row(
             controls=[],
@@ -339,6 +367,10 @@ class CreatedHistoriesApp:
                 ft.Text("Dashboard", size=24, weight=ft.FontWeight.BOLD),
                 ft.Container(height=16),
                 metrics_row,
+                ft.Container(height=24),
+                quick_actions_label,
+                ft.Container(height=12),
+                quick_action_buttons,
                 ft.Container(height=24),
                 sheet_stats_label,
                 ft.Container(height=16),
@@ -557,8 +589,21 @@ class CreatedHistoriesApp:
         if grid:
             selected_data = grid.get_selected_data()
             if selected_data:
-                self.selected_record_data = selected_data
-                self.update_detail_panel(selected_data)
+                # Get full record from database using ID
+                item_id = selected_data[0]  # First column is ID
+                full_record = self.db.get_item_by_id(item_id)
+                
+                if full_record:
+                    # Convert dict to tuple in the correct order
+                    full_tuple = tuple(
+                        full_record.get(field.lower().replace(' ', '_').replace('.', ''), '') 
+                        for field in ['id', 'opco', 'device_type', 'status', 'mfr', 'dev_code', 
+                                      'beg_ser', 'end_ser', 'oor_serial', 'qty', 'po_date', 'po_number', 
+                                      'recv_date', 'unit_cost', 'cid', 'me_number', 'pur_code', 'est', 
+                                      'use', 'notes1', 'notes2']
+                    )
+                    self.selected_record_data = full_tuple
+                    self.update_detail_panel(full_tuple)
     
     def on_search_change(self, e):
         """Handle search field changes"""
