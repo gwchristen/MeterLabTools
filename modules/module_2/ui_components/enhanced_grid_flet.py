@@ -16,7 +16,7 @@ class EnhancedDataGrid(ft.Column):
     """Enhanced data grid with sorting, filtering, and row selection"""
     
     def __init__(
-        self, 
+        self,
         columns: List[str],
         on_row_select: Optional[Callable[[int], None]] = None,
         on_row_double_click: Optional[Callable[[int], None]] = None,
