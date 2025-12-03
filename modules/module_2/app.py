@@ -115,7 +115,7 @@ class CreatedHistoriesApp:
         self.setup_page()
         
         # Build UI
-        self. build_ui()
+        self.build_ui()
         
         logger.info("Created Histories App initialized!")
     
@@ -127,29 +127,29 @@ class CreatedHistoriesApp:
         self.page.padding = 0
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE)
-    
+
     def build_ui(self):
         """Build the main user interface"""
         app_bar = self.create_app_bar()
-        self.nav_rail = self. create_navigation_rail()
-        
+        self.nav_rail = self.create_navigation_rail()
+
         self.content_area = ft.Container(
             content=self.create_dashboard_view(),
             expand=True,
             padding=24,
         )
-        
+
         main_content = ft.Row(
             controls=[
-                self. nav_rail,
-                ft. VerticalDivider(width=1),
+                self.nav_rail,
+                ft.VerticalDivider(width=1),
                 self.content_area,
             ],
             expand=True,
             spacing=0,
         )
-        
-        self. page.appbar = app_bar
+
+        self.page.appbar = app_bar
         self.page.add(main_content)
 
     def create_app_bar(self) -> ft.AppBar:
@@ -158,11 +158,12 @@ class CreatedHistoriesApp:
             "Dashboard",
             size=18,
             weight=ft.FontWeight.BOLD,
+            color=ft.Colors.BLUE_200,
         )
         self.subtitle_label = ft.Text(
             "Overview of all device histories",
             size=12,
-            color=ft.Colors.ON_SURFACE_VARIANT,
+            color=ft.Colors.BLUE_100,
         )
 
         breadcrumb_column = ft.Column(
@@ -178,7 +179,7 @@ class CreatedHistoriesApp:
         )
 
         return ft.AppBar(
-            leading=ft.Icon(ft.Icons.HISTORY_EDU),
+            leading=ft.Icon(ft.Icons.HISTORY_EDU, color=ft.Colors.BLUE_400, size=28),
             leading_width=50,
             title=breadcrumb_column,
             center_title=False,
@@ -211,35 +212,105 @@ class CreatedHistoriesApp:
             ],
         )
 
-    def create_navigation_rail(self) -> ft.NavigationRail:
-        """Create the navigation rail"""
-        destinations = [
-            ft.NavigationRailDestination(
-                icon=ft.Icons.DASHBOARD_OUTLINED,
-                selected_icon=ft.Icons.DASHBOARD,
-                label="Dashboard",
-            ),
+    def create_navigation_rail(self) -> ft.Container:
+        """Create a custom colored navigation rail"""
+
+        # Colors for each tab
+        tab_configs = [
+            {"label": "Dashboard", "icon": ft.Icons.DASHBOARD_OUTLINED, "selected_icon": ft.Icons.DASHBOARD,
+             "color": ft.Colors.BLUE_400},
+            {"label": "Ohio Meters", "icon": ft.Icons.TABLE_CHART_OUTLINED, "selected_icon": ft.Icons.TABLE_CHART,
+             "color": ft.Colors.GREEN_400},
+            {"label": "I&M Meters", "icon": ft.Icons.TABLE_CHART_OUTLINED, "selected_icon": ft.Icons.TABLE_CHART,
+             "color": ft.Colors.ORANGE_400},
+            {"label": "Ohio Transformers", "icon": ft.Icons.TABLE_CHART_OUTLINED, "selected_icon": ft.Icons.TABLE_CHART,
+             "color": ft.Colors.TEAL_400},
+            {"label": "I&M Transformers", "icon": ft.Icons.TABLE_CHART_OUTLINED, "selected_icon": ft.Icons.TABLE_CHART,
+             "color": ft.Colors.PURPLE_400},
         ]
 
-        sheet_labels = ["Ohio Meters", "I&M Meters", "Ohio Transformers", "I&M Transformers"]
+        self.nav_selected_index = 0
+        self.nav_buttons = []
 
-        for idx, (opco, device_type) in enumerate(self.SHEETS):
-            destinations.append(
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.TABLE_CHART_OUTLINED,
-                    selected_icon=ft.Icons.TABLE_CHART,
-                    label=sheet_labels[idx],
-                )
+        def on_nav_click(index):
+            self.nav_selected_index = index
+            self._update_nav_selection()
+
+            if index == 0:
+                self.show_dashboard()
+            else:
+                sheet_idx = index - 1
+                if 0 <= sheet_idx < len(self.SHEETS):
+                    opco, device_type = self.SHEETS[sheet_idx]
+                    sheet_name = f"{opco} - {device_type}"
+                    self.show_sheet(sheet_name)
+
+        def create_nav_button(index, config):
+            is_selected = index == self.nav_selected_index
+
+            return ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(
+                            config["selected_icon"] if is_selected else config["icon"],
+                            color=config["color"],
+                            size=24,
+                        ),
+                        ft.Text(
+                            config["label"],
+                            size=11,
+                            color=config["color"],
+                            text_align=ft.TextAlign.CENTER,
+                            weight=ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=4,
+                ),
+                padding=ft.padding.symmetric(vertical=12, horizontal=8),
+                border_radius=12,
+                bgcolor=ft.Colors.with_opacity(0.2, config["color"]) if is_selected else None,
+                on_click=lambda e, idx=index: on_nav_click(idx),
+                ink=True,
+                width=100,
             )
 
-        return ft.NavigationRail(
-            selected_index=0,
-            label_type=ft.NavigationRailLabelType.ALL,
-            min_width=80,  # Reduced from 100
-            min_extended_width=180,
-            destinations=destinations,
-            on_change=self.on_nav_change,
+        for i, config in enumerate(tab_configs):
+            btn = create_nav_button(i, config)
+            self.nav_buttons.append({"config": config, "container": btn})
+
+        nav_column = ft.Column(
+            controls=[btn["container"] for btn in self.nav_buttons],
+            spacing=4,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+        return ft.Container(
+            content=nav_column,
+            padding=ft.padding.symmetric(vertical=16, horizontal=8),
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+            width=110,
+        )
+
+    def _update_nav_selection(self):
+        """Update navigation button selection states"""
+        for i, btn_data in enumerate(self.nav_buttons):
+            config = btn_data["config"]
+            is_selected = i == self.nav_selected_index
+            container = btn_data["container"]
+
+            # Update the container
+            container.bgcolor = ft.Colors.with_opacity(0.2, config["color"]) if is_selected else None
+
+            # Update icon and text
+            column = container.content
+            icon = column.controls[0]
+            text = column.controls[1]
+
+            icon.name = config["selected_icon"] if is_selected else config["icon"]
+            text.weight = ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL
+
+            container.update()
     
     def on_nav_change(self, e):
         """Handle navigation rail selection changes"""
@@ -297,86 +368,242 @@ class CreatedHistoriesApp:
             idx = self.COLUMN_INDEX_MAP. get(col_name, 0)
             grid_record. append(full_record[idx] if idx < len(full_record) else "")
         return tuple(grid_record)
-    
-    def create_dashboard_view(self) -> ft. Control:
+
+    def create_dashboard_view(self) -> ft.Control:
         """Create the dashboard view with metrics"""
+        # Metric cards - equal width, expand evenly
         self.total_records_card = MetricCard("Total Records", "0", "📊")
         self.total_devices_card = MetricCard("Total Devices", "0", "🔧")
-        self. total_value_card = MetricCard("Total Value", "$0", "💰")
-        self. avg_cost_card = MetricCard("Avg.  Unit Cost", "$0", "📈")
-        
+        self.total_value_card = MetricCard("Total Value", "$0", "💰")
+        self.avg_cost_card = MetricCard("Avg.  Unit Cost", "$0", "📈")
+
+        # Wrap each card in a container with expand=True for equal width
         metrics_row = ft.Row(
             controls=[
-                self. total_records_card,
-                self. total_devices_card,
-                self. total_value_card,
-                self. avg_cost_card,
+                ft.Container(content=self.total_records_card, expand=True),
+                ft.Container(content=self.total_devices_card, expand=True),
+                ft.Container(content=self.total_value_card, expand=True),
+                ft.Container(content=self.avg_cost_card, expand=True),
             ],
             spacing=16,
-            wrap=True,
-            run_spacing=16,
         )
-        
-        sheet_stats_label = ft.Text("Sheet Statistics", size=18, weight=ft.FontWeight.W_600)
-        quick_actions_label = ft.Text("Quick Access", size=18, weight=ft. FontWeight.W_600)
-        
-        sheet_labels = [
-            ("Ohio M", "Ohio", "Meters"),
-            ("I&M M", "I&M", "Meters"),
-            ("Ohio T", "Ohio", "Transformers"),
-            ("I&M T", "I&M", "Transformers"),
-        ]
-        
-        quick_action_buttons = ft.Row(
+
+        # Date filter section
+        self.date_filter_dropdown = ft.Dropdown(
+            label="Date Filter",
+            width=200,
+            options=[
+                ft.dropdown.Option("all", "All Time"),
+                ft.dropdown.Option("1week", "Last 7 Days"),
+                ft.dropdown.Option("2weeks", "Last 2 Weeks"),
+                ft.dropdown.Option("30days", "Last 30 Days"),
+                ft.dropdown.Option("45days", "Last 45 Days"),
+                ft.dropdown.Option("90days", "Last 90 Days"),
+                ft.dropdown.Option("thismonth", "This Month"),
+                ft.dropdown.Option("thisyear", "This Year"),
+            ],
+            value="all",
+            on_change=self.on_date_filter_change,
+        )
+
+        # Year dropdown
+        current_year = datetime.now().year
+        year_options = [ft.dropdown.Option("all", "All Years")]
+        for year in range(current_year, current_year - 10, -1):
+            year_options.append(ft.dropdown.Option(str(year), str(year)))
+
+        self.year_filter_dropdown = ft.Dropdown(
+            label="Year",
+            width=120,
+            options=year_options,
+            value="all",
+            on_change=self.on_date_filter_change,
+        )
+
+        # Month dropdown
+        month_options = [ft.dropdown.Option("all", "All Months")]
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        for i, month in enumerate(months, 1):
+            month_options.append(ft.dropdown.Option(str(i), month))
+
+        self.month_filter_dropdown = ft.Dropdown(
+            label="Month",
+            width=120,
+            options=month_options,
+            value="all",
+            on_change=self.on_date_filter_change,
+        )
+
+        filter_row = ft.Row(
             controls=[
-                ft.ElevatedButton(
-                    text=label,
-                    icon=ft.Icons. TABLE_CHART,
-                    on_click=lambda e, o=opco, d=dtype: self.nav_to_sheet(o, d),
-                    width=150,
-                )
-                for label, opco, dtype in sheet_labels
+                ft.Text("Filter by Date:", size=14, weight=ft.FontWeight.W_500),
+                self.date_filter_dropdown,
+                ft.Text("or", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                self.year_filter_dropdown,
+                self.month_filter_dropdown,
+                ft.OutlinedButton(
+                    text="Clear Filters",
+                    icon=ft.Icons.CLEAR,
+                    on_click=self.clear_date_filters,
+                ),
             ],
-            spacing=16,
-            wrap=True,
+            spacing=12,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        
-        sheet_stats_row = ft.Row(controls=[], spacing=16, wrap=True, run_spacing=16)
-        
+
+        # Sheet Statistics section
+        sheet_stats_label = ft.Text("Sheet Statistics", size=18, weight=ft.FontWeight.W_600)
+
+        # Create stats cards for each sheet - equal width
+        sheet_stats_cards = []
         for opco, device_type in self.SHEETS:
             sheet_name = f"{opco} - {device_type}"
             card = StatisticsCard(sheet_name, {})
             self.sheet_stats_cards[sheet_name] = card
-            sheet_stats_row. controls.append(card)
-        
+            sheet_stats_cards.append(ft.Container(content=card, expand=True))
+
+        sheet_stats_row = ft.Row(
+            controls=sheet_stats_cards,
+            spacing=16,
+        )
+
+        # Build dashboard layout
         dashboard = ft.Column(
             controls=[
-                ft.Text("Dashboard", size=24, weight=ft.FontWeight. BOLD),
+                ft.Text("Dashboard", size=24, weight=ft.FontWeight.BOLD),
                 ft.Container(height=16),
                 metrics_row,
                 ft.Container(height=24),
-                quick_actions_label,
-                ft.Container(height=12),
-                quick_action_buttons,
+                ft.Divider(),
+                ft.Container(height=16),
+                filter_row,
                 ft.Container(height=24),
                 sheet_stats_label,
-                ft. Container(height=16),
+                ft.Container(height=16),
                 sheet_stats_row,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
-        
+
         self.update_dashboard_metrics()
         return dashboard
-    
+
+    def on_date_filter_change(self, e):
+        """Handle date filter changes"""
+        # If preset filter is selected, clear year/month
+        if e.control == self.date_filter_dropdown and self.date_filter_dropdown.value != "all":
+            self.year_filter_dropdown.value = "all"
+            self.month_filter_dropdown.value = "all"
+            self.year_filter_dropdown.update()
+            self.month_filter_dropdown.update()
+        # If year or month is selected, clear preset filter
+        elif e.control in [self.year_filter_dropdown, self.month_filter_dropdown]:
+            if self.year_filter_dropdown.value != "all" or self.month_filter_dropdown.value != "all":
+                self.date_filter_dropdown.value = "all"
+                self.date_filter_dropdown.update()
+
+        self.update_dashboard_metrics()
+
+    def clear_date_filters(self, e):
+        """Clear all date filters"""
+        self.date_filter_dropdown.value = "all"
+        self.year_filter_dropdown.value = "all"
+        self.month_filter_dropdown.value = "all"
+        self.date_filter_dropdown.update()
+        self.year_filter_dropdown.update()
+        self.month_filter_dropdown.update()
+        self.update_dashboard_metrics()
+
+    def get_date_filter_range(self):
+        """Get the date range based on current filter settings"""
+        from datetime import timedelta
+
+        today = datetime.now()
+        start_date = None
+        end_date = None
+
+        preset = self.date_filter_dropdown.value if hasattr(self,
+                                                            'date_filter_dropdown') and self.date_filter_dropdown else "all"
+        year = self.year_filter_dropdown.value if hasattr(self,
+                                                          'year_filter_dropdown') and self.year_filter_dropdown else "all"
+        month = self.month_filter_dropdown.value if hasattr(self,
+                                                            'month_filter_dropdown') and self.month_filter_dropdown else "all"
+
+        if preset != "all":
+            if preset == "1week":
+                start_date = today - timedelta(days=7)
+            elif preset == "2weeks":
+                start_date = today - timedelta(days=14)
+            elif preset == "30days":
+                start_date = today - timedelta(days=30)
+            elif preset == "45days":
+                start_date = today - timedelta(days=45)
+            elif preset == "90days":
+                start_date = today - timedelta(days=90)
+            elif preset == "thismonth":
+                start_date = today.replace(day=1)
+            elif preset == "thisyear":
+                start_date = today.replace(month=1, day=1)
+            end_date = today
+        elif year != "all":
+            year_int = int(year)
+            if month != "all":
+                month_int = int(month)
+                start_date = datetime(year_int, month_int, 1)
+                # Get last day of month
+                if month_int == 12:
+                    end_date = datetime(year_int + 1, 1, 1) - timedelta(days=1)
+                else:
+                    end_date = datetime(year_int, month_int + 1, 1) - timedelta(days=1)
+            else:
+                start_date = datetime(year_int, 1, 1)
+                end_date = datetime(year_int, 12, 31)
+
+        return start_date, end_date
+
+    def filter_items_by_date(self, items, start_date, end_date):
+        """Filter items by date range using recv_date"""
+        if not start_date and not end_date:
+            return items
+
+        filtered = []
+        for item in items:
+            # item is a tuple, recv_date is at index 12
+            recv_date_str = item[12] if len(item) > 12 else None
+            if not recv_date_str:
+                continue
+
+            try:
+                # Try parsing common date formats
+                recv_date = None
+                for fmt in ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y"]:
+                    try:
+                        recv_date = datetime.strptime(str(recv_date_str), fmt)
+                        break
+                    except ValueError:
+                        continue
+
+                if recv_date:
+                    if start_date and end_date:
+                        if start_date <= recv_date <= end_date:
+                            filtered.append(item)
+                    elif start_date and recv_date >= start_date:
+                        filtered.append(item)
+                    elif end_date and recv_date <= end_date:
+                        filtered.append(item)
+            except (ValueError, TypeError):
+                continue
+
+        return filtered
+
     def nav_to_sheet(self, opco: str, device_type: str):
         """Navigate to a sheet from dashboard button"""
         sheet_name = f"{opco} - {device_type}"
         for idx, (o, d) in enumerate(self.SHEETS):
             if o == opco and d == device_type:
-                self.nav_rail.selected_index = idx + 1
-                self.nav_rail. update()
+                self.nav_selected_index = idx + 1
+                self._update_nav_selection()
                 break
         self.show_sheet(sheet_name)
 
@@ -760,86 +987,92 @@ class CreatedHistoriesApp:
         except Exception as e:
             logger.error(f"Error loading data: {e}")
             self.show_snackbar(f"Error loading data: {e}", is_error=True)
-    
+
     def update_dashboard_metrics(self):
-        """Update dashboard metrics"""
+        """Update dashboard metrics with optional date filtering"""
         try:
+            start_date, end_date = self.get_date_filter_range()
+
             total_records = 0
             total_qty = 0
-            total_value = 0.0
+            total_value = 0.
+            0
             costs = []
-            
+
             for opco, device_type in self.SHEETS:
-                stats = self.db. get_statistics(opco, device_type)
-                
-                total_records += stats. get('total_items', 0)
-                total_qty += stats.get('total_qty', 0)
-                total_value += stats.get('total_value', 0.0)
-                
-                avg_cost = stats. get('avg_cost', 0.0)
-                if avg_cost > 0:
-                    costs.append(avg_cost)
-                
+                # Get all items for this sheet
+                items = self.db.get_items_by_sheet(opco, device_type)
+
+                # Apply date filter if set
+                if start_date or end_date:
+                    items = self.filter_items_by_date(items, start_date, end_date)
+
+                # Calculate stats from filtered items
+                sheet_records = len(items)
+                sheet_qty = sum(item[9] if len(item) > 9 and item[9] else 0 for item in items)
+                sheet_value = sum(
+                    (item[9] if len(item) > 9 and item[9] else 0) *
+                    (item[13] if len(item) > 13 and item[13] else 0)
+                    for item in items
+                )
+                sheet_avg_cost = sheet_value / sheet_qty if sheet_qty > 0 else 0
+
+                total_records += sheet_records
+                total_qty += sheet_qty
+                total_value += sheet_value
+
+                if sheet_avg_cost > 0:
+                    costs.append(sheet_avg_cost)
+
+                # Update sheet card
                 sheet_name = f"{opco} - {device_type}"
-                card = self.sheet_stats_cards. get(sheet_name)
+                card = self.sheet_stats_cards.get(sheet_name)
                 if card:
                     card.update_stats({
-                        'Records': stats.get('total_items', 0),
-                        'Devices': stats.get('total_qty', 0),
-                        'Value': f"${stats.get('total_value', 0.0):,.2f}"
+                        'Records': f"{sheet_records:,}",
+                        'Devices': f"{sheet_qty:,}",
+                        'Value': f"${sheet_value:,.2f}"
                     })
-            
+
+            # Update metric cards
             if self.total_records_card:
                 self.total_records_card.update_value(f"{total_records:,}")
             if self.total_devices_card:
                 self.total_devices_card.update_value(f"{total_qty:,}")
-            if self. total_value_card:
-                self. total_value_card.update_value(f"${total_value:,.2f}")
-            
+            if self.total_value_card:
+                self.total_value_card.update_value(f"${total_value:,.2f}")
+
             avg_cost = sum(costs) / len(costs) if costs else 0
             if self.avg_cost_card:
                 self.avg_cost_card.update_value(f"${avg_cost:,.2f}")
-            
+
         except Exception as e:
             logger.error(f"Error updating metrics: {e}")
-    
+
     def toggle_edit_mode(self, e):
         """Toggle edit mode with password"""
-        if self. edit_mode:
+        if self.edit_mode:
             self.edit_mode = False
             self.update_mode_indicator()
             if self.edit_mode_btn:
-                self. edit_mode_btn.text = "🔓 Enable Edit Mode"
+                self.edit_mode_btn.text = "🔓 Enable Edit Mode"
+                self.edit_mode_btn.update()
             self.show_snackbar("Edit mode disabled")
             if self.selected_record_data:
                 self.update_detail_panel(self.selected_record_data)
         else:
             self.show_password_dialog()
-        
+
         self.page.update()
-    
+
     def update_mode_indicator(self):
         """Update the mode indicator display"""
         if self.mode_indicator:
             if self.edit_mode:
-                self. mode_indicator.content = ft.Row(
-                    controls=[
-                        ft.Icon(ft.Icons. EDIT, size=16, color=ft. Colors.GREEN),
-                        ft.Text("Edit Mode", size=12, color=ft.Colors. GREEN),
-                    ],
-                    spacing=4,
-                )
-                self.mode_indicator.bgcolor = ft.Colors. GREEN_900
+                self.mode_indicator.update_status('success', 'Edit Mode')
             else:
-                self.mode_indicator.content = ft.Row(
-                    controls=[
-                        ft.Icon(ft.Icons. LOCK_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
-                        ft.Text("Read-Only", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ],
-                    spacing=4,
-                )
-                self.mode_indicator.bgcolor = ft. Colors.SURFACE_CONTAINER_HIGHEST
-    
+                self.mode_indicator.update_status('inactive', 'Read-Only')
+
     def show_password_dialog(self):
         """Show password dialog for edit mode"""
         password_field = ft.TextField(
@@ -847,30 +1080,31 @@ class CreatedHistoriesApp:
             password=True,
             can_reveal_password=True,
             autofocus=True,
+            on_submit=lambda e: submit_password(e),
         )
-        
+
         def close_dialog(e):
-            dialog. open = False
+            dialog.open = False
             self.page.update()
-        
+
         def submit_password(e):
             password = password_field.value or ""
             password_hash = hashlib.md5(password.encode()).hexdigest()
-            
-            if password_hash == self. MASTER_PASSWORD_HASH:
+
+            if password_hash == self.MASTER_PASSWORD_HASH:
                 self.edit_mode = True
                 self.update_mode_indicator()
                 if self.edit_mode_btn:
                     self.edit_mode_btn.text = "🔒 Disable Edit Mode"
-                self. show_snackbar("Edit mode enabled!")
+                    self.edit_mode_btn.update()
                 dialog.open = False
+                self.page.update()
+                self.show_snackbar("Edit mode enabled!")
                 if self.selected_record_data:
                     self.update_detail_panel(self.selected_record_data)
             else:
-                self. show_snackbar("Incorrect password", is_error=True)
-            
-            self.page.update()
-        
+                self.show_snackbar("Incorrect password", is_error=True)
+
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Enter Password"),
@@ -881,8 +1115,8 @@ class CreatedHistoriesApp:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        
-        self.page.overlay. append(dialog)
+
+        self.page.overlay.append(dialog)
         dialog.open = True
         self.page.update()
     
